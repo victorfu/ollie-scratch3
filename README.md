@@ -14,7 +14,7 @@ npm run setup
 npm run dev
 ```
 
-開啟 **http://127.0.0.1:3000**。不需要 `.env.local` 或額外教材資料夾，預設就會讀取版本控制內的 `examples/web`。
+開啟 [http://127.0.0.1:3000](http://127.0.0.1:3000)。不需要 `.env.local` 或額外教材資料夾，預設就會讀取版本控制內的 `examples/web`。
 
 `setup` 依兩份 lockfile 安裝 Next 與獨立 Scratch 套件，再建置編輯器。第一次建置會下載固定 commit 的官方 Scratch GUI 原始碼、驗證 SHA-256，快取至 `vendor/scratch-editor/.cache/`；快取與建置產物不加入 Git。已有有效快取時不需重新下載來源。不要用無版本升級或 `npm audit fix --force` 替換相容組合。
 
