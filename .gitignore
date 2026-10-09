@@ -1,0 +1,20 @@
+node_modules/
+.next/
+public/scratch-editor/
+vendor/scratch-editor/.generated/
+.env*
+!.env.example
+*.sb3
+!tests/fixtures/*.sb3
+!examples/web/**/*.sb3
+output/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.DS_Store
+.playwright-cli/
+
+
+# Verified upstream downloads are a local cache, not repository content.
+vendor/scratch-editor/.cache/
+vendor/scratch-editor/upstream/*.tgz

@@ -1,0 +1,42 @@
+{
+  "name": "ollie-scratch3",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=24.14.0 <25"
+  },
+  "scripts": {
+    "setup": "npm ci --ignore-scripts && npm ci --prefix vendor/scratch-editor --ignore-scripts && npm run editor:build",
+    "editor:build": "node scripts/build-editor.mjs",
+    "predev": "node scripts/build-editor.mjs --if-needed",
+    "dev": "next dev --hostname 127.0.0.1",
+    "prebuild": "node scripts/build-editor.mjs --if-needed",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "playwright test",
+    "test:fixtures": "node scripts/create-fixtures.cjs",
+    "editor:fetch": "node vendor/scratch-editor/source.cjs",
+    "start:deploy": "next start --hostname 0.0.0.0",
+    "examples:index": "node scripts/index-examples.cjs",
+    "postbuild": "node scripts/check-deployment.mjs"
+  },
+  "dependencies": {
+    "crc-32": "1.2.2",
+    "next": "16.4.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "0.0.1",
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/yauzl": "2.10.3",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

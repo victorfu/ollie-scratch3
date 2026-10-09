@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "file": "第01課_第一次見面.sb3",
+      "sha256": "81621f69993c45b2eac9adc3921c161f728f82e61983997035da658162d610fb"
+    },
+    {
+      "file": "第02課_舞台背景與存檔.sb3",
+      "sha256": "e30110b9376cd2a0482ac70e53ee017db8fdd6f62033dddba7e5f5744af74151"
+    },
+    {
+      "file": "第03課_主持人跳一跳.sb3",
+      "sha256": "96925e62599a207f8870a5890c0c9752f41baa25b71340ce23ea5b8a0cb2896a"
+    },
+    {
+      "file": "第04課_舞者登場.sb3",
+      "sha256": "ead8868d6c10e13336016228334869d68fc7b24ed619bdfa2a988308270d3866"
+    },
+    {
+      "file": "第05課_鍵盤讓舞者換動作.sb3",
+      "sha256": "4c143af3031e0486d196f3db648df248d7e089dfd4feab7132f0c573cae02c78"
+    },
+    {
+      "file": "第06課_加上音樂.sb3",
+      "sha256": "2ec9f13886d61fc12a296e945a44df156d180b8a3ffcedfd691a0b5d524e7368"
+    },
+    {
+      "file": "第07課_打開AI鏡頭.sb3",
+      "sha256": "fa91ec69be0300d4a82ff2c1e20c0abbf83c73153a71a9ebea8a648d917c36d5"
+    },
+    {
+      "file": "第08課_看見手的位置.sb3",
+      "sha256": "2e960fc3bb1e6fa2d77a598350c7b0bddb8020de8a0ded0ea84dd0b957d7cd12"
+    },
+    {
+      "file": "第09課_手舉高.sb3",
+      "sha256": "4a9a1b93914033913a6ec4e0ed93265b4c647ed2dad80e35d1864731d807957c"
+    },
+    {
+      "file": "第10課_手向左.sb3",
+      "sha256": "d37ac3b32d3a906ace91c34f6a6329ce103e9c6bf23a127f3eb906a5352ea609"
+    },
+    {
+      "file": "第11課_手向右與預備區.sb3",
+      "sha256": "2419a6af873b02472e91fddd6ebb0e379314b5553b2d82f556947252e306f89d"
+    },
+    {
+      "file": "第12課_鍵盤測試模式.sb3",
+      "sha256": "878b999d7268acc67cf149324aeb17e3a1260fc7d8964c53760ad16cbfa01f68"
+    },
+    {
+      "file": "第13課_舞者模仿你.sb3",
+      "sha256": "a51ff5425e7a6d69e3f49861747dc91d4385c557488800d85c7101066cd644e3"
+    },
+    {
+      "file": "第14課_一次只算一次.sb3",
+      "sha256": "0d521866a66d95879f684b58cf42f6f8e38180bc4a5c65e5a8620401fd8b6488"
+    },
+    {
+      "file": "第15課_再確認一次.sb3",
+      "sha256": "22e0ddac954ded2f3e50d58dae8ccbcd794f2e27c6f3fe82c556d536920aef24"
+    },
+    {
+      "file": "第16課_清單抽動作.sb3",
+      "sha256": "641d04bcdad01ba288106a4167f981d5242bc96e3c76a44676de3e3aa3b33d13"
+    },
+    {
+      "file": "第17課_出一整題.sb3",
+      "sha256": "c5a81155a4ad680a7706c87b844fdca7269880645645db564451e1b46a054d7f"
+    },
+    {
+      "file": "第18課_舞者示範題目.sb3",
+      "sha256": "f75ec54f6179e83f1bb02c4e86ab576b12969fb48e2e98fbdfc9412aec8cf0a5"
+    },
+    {
+      "file": "第19課_輪到你.sb3",
+      "sha256": "ac8f56365b41a4ff5b09d08ca719bdd44d59950135d2270a835fe403abae02e5"
+    },
+    {
+      "file": "第20課_比對答案.sb3",
+      "sha256": "3517a54e0b4ee1f2ef9f1cb3992e466c2fa524ebffbc3988bf5afa4dbd715730"
+    },
+    {
+      "file": "第21課_三回合過關.sb3",
+      "sha256": "f480f8450c17670f81d80f0b6ddc166f80d6b2f25f4201ee42794e36981e288d"
+    },
+    {
+      "file": "第22課_分數與連續加分.sb3",
+      "sha256": "c951a4c71d1820bb120c0a0230047b33fbd5bd9ec13601db2a29dd9bdec89411"
+    },
+    {
+      "file": "第23課_生命與遊戲結束.sb3",
+      "sha256": "05a34abea3f4fd23a8df97b557b7d5af18ee8f8c5b1df982e552b0c7ceccf5bd"
+    },
+    {
+      "file": "第24課_第二關節奏接龍.sb3",
+      "sha256": "d1f005e844f33bbffc352429acc378cc94a2f2894955cc0fa18f47344419edb8"
+    },
+    {
+      "file": "第25課_越來越快與挑戰成功.sb3",
+      "sha256": "588466108191a8a4b950a0c2b77502d06cce90b79c202b35f2ed3770c4c56573"
+    },
+    {
+      "file": "第26課_封面與開始.sb3",
+      "sha256": "37ebb017be6466c5700e7f71dece299de230db9e29d19a1b8d3afa2e8239ab3f"
+    },
+    {
+      "file": "第27課_結束畫面與表情.sb3",
+      "sha256": "86c6f9f516fc3ad0bdc31d43db0547a0fc6937c2cf1d3db23c29dd334154bd0e"
+    },
+    {
+      "file": "第28課_完成作品.sb3",
+      "sha256": "388405cea05b38714bf22619959e6b876a2ec48e6bcc7966bf4d8676026cdbff"
+    }
+  ]
+}
