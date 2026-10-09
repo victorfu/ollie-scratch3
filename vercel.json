@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm ci --ignore-scripts && npm ci --prefix vendor/scratch-editor --ignore-scripts",
+  "buildCommand": "npm run build"
+}

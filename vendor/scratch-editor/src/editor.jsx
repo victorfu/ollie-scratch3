@@ -8,6 +8,7 @@ import {setProjectUnchanged,setProjectChanged} from 'scratch-gui-source/reducers
 import {setProjectTitle} from 'scratch-gui-source/reducers/project-title';
 import {activateTab} from 'scratch-gui-source/reducers/editor-tab';
 import {validMessage,envelope} from '../../../lib/protocol';
+import {validateSB3} from '../../../lib/sb3-validate';
 import {download,errorMessage} from './shared';
 
 const store=createStore(combineReducers(guiReducers),{locales:initLocale(localesInitialState,'zh-tw'),scratchGui:guiInitialState},guiMiddleware);
@@ -27,10 +28,9 @@ const stop=()=>{
  vm.stopAll(); // Handpose owns PROJECT_STOP_ALL; do not also call its stop() directly.
  if(!vm.runtime.handpose){vm.runtime.ioDevices.video.disableVideo();reportCamera({state:'off',message:'攝影機已停止'});}
 };
-async function validate(bytes) {
- const response=await fetch('/api/validate',{method:'POST',body:bytes,headers:{'Content-Type':'application/octet-stream'},signal:AbortSignal.timeout(30000)});
- const result=await response.json();if(!response.ok)throw Error(result.error||'SB3 格式：驗證失敗');
-}
+// Validated in the browser: hosted functions cap request bodies (Vercel: 4.5 MB),
+// and these bytes never leave this page anyway. Protocol caps messages at 500 MB.
+async function validate(bytes) {await validateSB3(Buffer.from(bytes),500*1024*1024);}
 async function apply(bytes,name,changed=false) {
  await vm.loadProject(bytes);
  // loadProject already emits targets/workspace updates. Match the upstream GUI's

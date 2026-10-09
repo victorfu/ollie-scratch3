@@ -63,7 +63,15 @@ npm run start
 
 Next 的 output file tracing 已明確包含範例 API 所需的 `examples/web`。`npm run build` 完成後會自動檢查兩個 API 的 tracing 清單是否包含全部教材，並確認 Scratch 靜態產物存在；缺檔會直接使建置失敗。自行打包 Node 伺服器時需保留 `.next`、`public`（包含編譯後的 Scratch）、`examples/web`、package 設定與 runtime dependencies，並從專案根目錄啟動。使用支援 Next.js 的部署平台時，仍需確認它有發布 `public/scratch-editor/` 與 API tracing 列出的範例檔案。
 
-目前沒有綁定任何雲端供應商或自動部署 workflow。部署相機功能必須使用 **HTTPS**；localhost 開發不受此限制。API 預設只接受 localhost、127.0.0.1、[::1]；正式 hostname 必須加入白名單。
+### Vercel
+
+專案已附 `vercel.json`（Install Command 會同時安裝兩份 lockfile；Build Command 為 `npm run build`，`prebuild` 會建置 Scratch）。在 Vercel 匯入 repo、Root Directory 保留專案根目錄、Node.js 選 24.x 即可，其餘使用預設值。
+
+- `*.vercel.app` 的部署、分支與正式網址由 Vercel 系統變數（`VERCEL_URL`、`VERCEL_BRANCH_URL`、`VERCEL_PROJECT_PRODUCTION_URL`）自動加入白名單，Preview 也能使用。
+- **自訂網域**仍需設定 `SCRATCH_ALLOWED_HOSTS=scratch.example.com`。
+- SB3 驗證在瀏覽器內執行，匯入 50 MB 作品不受 Vercel Function 4.5 MB request body 上限影響。範例檔由 Function 回傳，單檔需小於 4.5 MB（目前最大約 13 KB）。
+
+除 `vercel.json` 外，沒有綁定其他雲端供應商或自動部署 workflow。部署相機功能必須使用 **HTTPS**；localhost 開發不受此限制。API 預設只接受 localhost、127.0.0.1、[::1]；正式 hostname 必須加入白名單。
 
 `dev`／`build` 只在 Scratch 產物缺失或建置輸入變更時重建。常用維護指令：
 

@@ -35,7 +35,7 @@ examples/web（隨 Git 部署）；可用 server-only SCRATCH_EXAMPLES_DIR 覆�
 ## 替換交易
 
 1. 父頁取得單一 SB3；GET 只負責 Host、catalog 路徑／副檔名與壓縮大小界線，回傳原始 bytes，不重複解壓。
-2. 父頁把 ArrayBuffer 的所有權轉移給 iframe 的 prepare；iframe 透過 Node `/api/validate` 驗證 ZIP/CRC/結構/extension **一次**。成功後把 bytes 暫存在該 editor session，回傳不可猜測的 preparedId。單次最多保留一份候選。
+2. 父頁把 ArrayBuffer 的所有權轉移給 iframe 的 prepare；iframe 在瀏覽器內以 `lib/sb3-validate.js`（與伺服器共用同一份規則）驗證 ZIP/CRC/結構/extension **一次**，作品 bytes 不會上傳；因此不受託管平台的 request body 上限（Vercel 4.5 MB）影響。成功後把 bytes 暫存在該 editor session，回傳不可猜測的 preparedId。單次最多保留一份候選。
 3. 有 dirty 時顯示三選一；取消發 discard 釋放候選，不停止作品／相機，也不更動 VM。新的握手或 iframe 銷毀會使舊候選失效。
 4. 確認後發 load(preparedId)，僅載入剛才驗證過的同一份 bytes；未知或失效 ID 拒絕。先用 saveProjectSb3 備份，失敗立即中止。選擇下載時先下載備份，再停止作品並載入。
 5. 使用 vm.loadProject 自帶的 targets/workspace 更新；切回程式頁，依 upstream GUI 做下一個 task 的 dirty reset，不額外 emit 或等固定 80ms。

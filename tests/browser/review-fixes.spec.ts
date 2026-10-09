@@ -47,8 +47,7 @@ test('API rejects untrusted Host even with a matching attacker Origin',async({re
  const catalog=await(await request.get('/api/examples')).json();
  const headers={host:'attacker.invalid:3000',origin:'http://attacker.invalid:3000'};
  for(const url of ['/api/examples',`/api/examples/${catalog.examples[0].id}/project`])expect((await request.get(url,{headers})).status()).toBe(403);
- expect((await request.post('/api/validate',{headers,data:await readFile('tests/fixtures/minimal.sb3')})).status()).toBe(403);
- expect((await request.post('/api/validate',{headers:{origin:new URL(baseURL!).origin},data:await readFile('tests/fixtures/minimal.sb3')})).ok()).toBe(true);
+ expect((await request.get('/api/examples',{headers:{origin:new URL(baseURL!).origin}})).ok()).toBe(true);
 });
 
 test('File load/save closes its menu and an empty title downloads a visible SB3 filename',async({page})=>{
@@ -66,12 +65,12 @@ test('successful replacement clears recovery and camera-error status',async({pag
  await page.locator('input[type=file]').setInputFiles('tests/fixtures/minimal.sb3');await loaded(page,'minimal');await expect(page.locator('.recovery')).toHaveCount(0);await expect(page.locator('footer')).toContainText('攝影機已停止');
 });
 
-test('one validation per gallery load and no false dirty after a slow import',async({page})=>{
+test('gallery load validates in the browser and no false dirty after a slow import',async({page})=>{
  const f=await ready(page),cdp=await page.context().newCDPSession(page);await cdp.send('Emulation.setCPUThrottlingRate',{rate:6});
- let validations=0;page.on('request',r=>{if(r.method()==='POST'&&r.url().endsWith('/api/validate'))validations++;});
+ let uploads=0;page.on('request',r=>{if(r.method()==='POST')uploads++;});
  await select(page,'第28課');await loaded(page,'第28課');await page.waitForTimeout(500);
- expect(validations).toBe(1);expect(await f.evaluate(()=>(window as any).reviewStore.getState().scratchGui.projectChanged)).toBe(false);
- await select(page,'第01課');await loaded(page,'第01課');expect(validations).toBe(2);
+ expect(uploads).toBe(0);expect(await f.evaluate(()=>(window as any).reviewStore.getState().scratchGui.projectChanged)).toBe(false);
+ await select(page,'第01課');await loaded(page,'第01課');expect(uploads).toBe(0);
 });
 
 test('camera-on block does not wait for the model before executing the next block',async({page})=>{

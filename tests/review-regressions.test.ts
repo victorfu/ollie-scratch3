@@ -31,10 +31,19 @@ test('Host guard rejects rebinding hosts before origin checks and permits explic
  for(const host of ['localhost','localhost:3000','127.0.0.1:3103','[::1]:3000'])assert.equal(allowedHost(host),true);
  for(const host of [null,'attacker.test:3000','localhost.attacker.test','localhost@attacker.test','localhost/','localhost,attacker','127.0.0.1:bad'])assert.equal(allowedHost(host),false);
  assert.equal(guardRequest(new Request('http://localhost/api/examples',{headers:{host:'attacker.test',origin:'http://attacker.test'}}))?.status,403);
- assert.equal(guardRequest(new Request('http://localhost/api/validate',{headers:{host:'localhost'}}),true)?.status,403);
+ assert.equal(guardRequest(new Request("http://localhost/api/examples",{headers:{host:"localhost"}}),true)?.status,403);
  assert.equal(guardRequest(new Request('http://localhost/api/examples',{headers:{host:'localhost',origin:'http://attacker.test'}}))?.status,403);
  const prev=process.env.SCRATCH_ALLOWED_HOSTS;process.env.SCRATCH_ALLOWED_HOSTS='workshop.example';
  try{assert.ok(allowedHost('workshop.example:443'));assert.ok(!allowedHost('bad.workshop.example'));}finally{if(prev===undefined)delete process.env.SCRATCH_ALLOWED_HOSTS;else process.env.SCRATCH_ALLOWED_HOSTS=prev;}
+});
+test('Host guard trusts Vercel system hostnames only on Vercel',()=>{
+ const keys=['VERCEL','VERCEL_URL','VERCEL_BRANCH_URL','VERCEL_PROJECT_PRODUCTION_URL'],prev=keys.map(k=>process.env[k]);
+ Object.assign(process.env,{VERCEL_URL:'ollie-abc123.vercel.app',VERCEL_BRANCH_URL:'ollie-git-main.vercel.app',VERCEL_PROJECT_PRODUCTION_URL:'ollie.vercel.app'});
+ try{
+  delete process.env.VERCEL;assert.ok(!allowedHost('ollie.vercel.app'));
+  process.env.VERCEL='1';for(const h of ['ollie-abc123.vercel.app','ollie-git-main.vercel.app','ollie.vercel.app:443'])assert.ok(allowedHost(h));
+  assert.ok(!allowedHost('other.vercel.app'));
+ }finally{keys.forEach((k,i)=>prev[i]===undefined?delete process.env[k]:process.env[k]=prev[i]);}
 });
 test('unreadable recursive subfolder produces a warning without dropping valid siblings',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'ollie-recursive-')),prev=process.env.SCRATCH_EXAMPLES_DIR,recurse=process.env.SCRATCH_EXAMPLES_RECURSIVE;
@@ -54,7 +63,7 @@ test('shared names never produce a hidden or empty filename; errors accept VM st
 test('fingerprint invalidates when the original upstream extension changes',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'ollie-fingerprint-'));
  try{
-  for(const file of ['vendor/scratch-editor/source.cjs','vendor/scratch-editor/package.json','vendor/scratch-editor/package-lock.json','vendor/scratch-editor/prepare.cjs','vendor/scratch-editor/webpack.config.cjs','vendor/scratch-editor/src/editor.jsx','vendor/scratch-editor/upstream/handpose2scratch.js','lib/protocol.js','scripts/build-editor.mjs','scripts/editor-fingerprint.mjs','.nvmrc']){await mkdir(path.dirname(path.join(root,file)),{recursive:true});await writeFile(path.join(root,file),'original');}
+  for(const file of ['vendor/scratch-editor/source.cjs','vendor/scratch-editor/package.json','vendor/scratch-editor/package-lock.json','vendor/scratch-editor/prepare.cjs','vendor/scratch-editor/webpack.config.cjs','vendor/scratch-editor/src/editor.jsx','vendor/scratch-editor/upstream/handpose2scratch.js','lib/protocol.js','lib/sb3-validate.js','scripts/build-editor.mjs','scripts/editor-fingerprint.mjs','.nvmrc']){await mkdir(path.dirname(path.join(root,file)),{recursive:true});await writeFile(path.join(root,file),'original');}
   const before=editorFingerprint(root);await writeFile(path.join(root,'vendor/scratch-editor/upstream/handpose2scratch.js'),'updated upstream');assert.notEqual(editorFingerprint(root),before);
  }finally{await rm(root,{recursive:true,force:true});}
 });
