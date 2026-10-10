@@ -69,3 +69,12 @@ test('lessons use only official Scratch blocks plus Music, Pen and Handpose2Scra
   }
  }
 });
+
+// The host stands top-left and its speech bubbles cover that corner: no visible monitor may sit there.
+test('no variable or list monitor sits under the host speech bubble',async()=>{
+ for(const file of (await readdir('examples/web')).filter(f=>f.endsWith('.sb3')).sort()){
+  const project=JSON.parse(await (await JSZip.loadAsync(await readFile('examples/web/'+file))).file('project.json').async('string'));
+  for(const m of project.monitors.filter((m:any)=>m.visible))
+   assert.ok(!(m.x<200&&m.y<120),`${file}: ${m.params.VARIABLE||m.params.LIST} at (${m.x},${m.y}) is hidden by the host's speech bubble`);
+ }
+});
