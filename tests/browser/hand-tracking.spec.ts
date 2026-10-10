@@ -70,14 +70,14 @@ test('web lesson 28 reads hand gestures with official blocks only: fist readies,
  // Restart and walk the opening tutorial: each prompt waits for the real gesture, and moves are echoed by the dancer.
  await ed.locator('img[class*=green-flag_green-flag]').click();
  const hostSays=()=>f.evaluate(()=>(window as any).vm.runtime.targets.find((t:any)=>t.getName()==='主持人').getCustomState('Scratch.looks')?.text||'');
- const tutorial:[string,'up'|'fist'|'left'|'right',string|null][]=[['手指朝上','up','舉高'],['握拳，就是','fist',null],['手指朝左','left','向左'],['握拳，回到預備','fist',null],['手指朝右','right','向右'],['握拳，回到預備','fist',null]];
+ const tutorial:[string,'up'|'fist'|'left'|'right',string|null][]=[['手指朝上','up','舉高'],['握拳＝預備','fist',null],['手指朝左','left','向左'],['握拳，回到預備','fist',null],['手指朝右','right','向右'],['握拳，回到預備','fist',null]];
  for(const [prompt,gesture,echo] of tutorial){
   await expect.poll(hostSays,{timeout:10000}).toContain(prompt);await pose(f,gesture);
   if(echo)await expect.poll(()=>stageVar('v02930')).toBe(echo);
  }
  await expect.poll(hostSays,{timeout:10000}).toContain('準備好了');
  // Space skips the tutorial straight to the start prompt (restart, then skip during the first step).
- await ed.locator('img[class*=green-flag_green-flag]').click();await expect.poll(hostSays,{timeout:10000}).toContain('按空白鍵可跳過');
+ await ed.locator('img[class*=green-flag_green-flag]').click();await expect.poll(hostSays,{timeout:10000}).toContain('空白鍵跳過');
  await ed.locator('[class*="stage_stage_"] canvas').click();await page.keyboard.press('Space');
  await expect.poll(hostSays,{timeout:3000}).toContain('準備好了');
  // Play the real lesson: open hand, fingers up starts it; each answer is fist then the gesture.
