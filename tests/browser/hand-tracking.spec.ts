@@ -56,17 +56,15 @@ test('web lesson 28 reads hand gestures with official blocks only: fist readies,
  await page.waitForTimeout(1000);
  expect(await read()).toMatchObject({x:100,y:-60,visible:true,action:'向右',lock:1});
  expect(await traced()).toEqual(['向右']);
- // ↓ releases the gesture left over from the lost hand, and the stale frame cannot bring 向右 back.
- await ed.locator('[class*="stage_stage_"] canvas').click();await page.keyboard.down('ArrowDown');await expect.poll(async()=> (await read()).lock).toBe(0);
- await page.keyboard.up('ArrowDown');await page.waitForTimeout(400);expect(await read()).toMatchObject({action:'預備',lock:0});
+ // The hand comes back as a fist: that releases the lock for the next move (there is no keyboard fallback).
+ await pose(f,'fist',100,-60);await expect.poll(async()=> (await read()).lock).toBe(0);expect((await read()).action).toBe('預備');
  // Distance does not matter: a small, far-away hand pointing left still reads as 向左; rotating to up without a fist
  // changes 動作 but stays locked (one move per fist).
  await pose(f,'left',-120,60,20);await expect.poll(async()=> (await read()).lock).toBe(1);expect((await read()).action).toBe('向左');
  await pose(f,'up',-120,60,20);await expect.poll(async()=> (await read()).action).toBe('舉高');await page.waitForTimeout(300);expect((await read()).lock).toBe(1);
  await pose(f,'fist',-120,60,20);await expect.poll(async()=> (await read()).lock).toBe(0);
- // Keyboard still works: held keys override 動作, release returns to the hand's gesture.
- await ed.locator('[class*="stage_stage_"] canvas').click();await page.keyboard.down('ArrowRight');await expect.poll(async()=> (await read()).action).toBe('向右');await expect.poll(async()=> (await read()).lock).toBe(1);
- await page.keyboard.up('ArrowRight');await expect.poll(async()=> (await read()).action).toBe('預備');await expect.poll(async()=> (await read()).lock).toBe(0);
+ // Arrow keys do nothing: gestures are the only control.
+ await ed.locator('[class*="stage_stage_"] canvas').click();await page.keyboard.down('ArrowRight');await page.waitForTimeout(400);expect(await read()).toMatchObject({action:'預備',lock:0});await page.keyboard.up('ArrowRight');
  // Restart and walk the opening tutorial: each prompt waits for the real gesture, and moves are echoed by the dancer.
  await ed.locator('img[class*=green-flag_green-flag]').click();
  const hostSays=()=>f.evaluate(()=>(window as any).vm.runtime.targets.find((t:any)=>t.getName()==='主持人').getCustomState('Scratch.looks')?.text||'');
@@ -133,10 +131,9 @@ test('step lessons 9, 11 and 15 judge the same gestures: fist readies, finger di
    await pose(f,move);await expect.poll(()=>variable('動作'),{message:`${lesson} ${move}`}).toBe(names[move]);
   }
   if(lesson==='第15課'){
-   // One move per fist (lock); when the hand leaves, the last frame stays: ↓ resets and the stale frame cannot undo it.
-   await expect.poll(async()=>Number(await variable('鎖'))).toBe(1);
-   await ed.locator('[class*="stage_stage_"] canvas').click();await page.keyboard.down('ArrowDown');await expect.poll(()=>variable('動作')).toBe('預備');
-   await page.keyboard.up('ArrowDown');await page.waitForTimeout(400);expect(await variable('動作')).toBe('預備');expect(Number(await variable('鎖'))).toBe(0);
+   // One move per fist (lock); when the hand leaves, the last frame stays and nothing re-triggers until a fist.
+   await expect.poll(async()=>Number(await variable('鎖'))).toBe(1);await page.waitForTimeout(400);expect(Number(await variable('鎖'))).toBe(1);
+   await pose(f,'fist');await expect.poll(async()=>Number(await variable('鎖'))).toBe(0);expect(await variable('動作')).toBe('預備');
   }
   await ed.locator('img[class*=stop-all_stop-all]').click();
  }

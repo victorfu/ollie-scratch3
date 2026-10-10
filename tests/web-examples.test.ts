@@ -50,6 +50,8 @@ test('all bundled deployment examples match the manifest and load without a priv
    const moves=[['g_set_up','舉高'],['g_set_left','向左'],['g_set_right','向右']].filter(([id])=>B[id]).map(([id,m])=>B[id].inputs.VALUE[1][1]===m&&m);
    assert.deepEqual(moves,['舉高','向左','向右'].slice(0,lesson===9?1:lesson===10?2:3),record.file);
    assert.equal(Boolean(p.targets.find((t:any)=>t.name==='預備區')),lesson>=11,record.file);
+   // The arrow-key fallback is gone: gestures are the only way to act.
+   if(lesson>=13)assert.equal(Object.values<any>(B).some((b:any)=>b.opcode==='sensing_keypressed'),false,record.file);
    // From lesson 15 an action must hold for the confirm time before 動作成立.
    const waits=Object.values<any>(B).filter((b:any)=>b.opcode==='control_wait').map((b:any)=>b.inputs.DURATION[1][1]);
    assert.deepEqual(waits,lesson>=15?[String(GESTURE.confirm)]:[],record.file);
@@ -57,10 +59,10 @@ test('all bundled deployment examples match the manifest and load without a priv
    assert.ok(!says.includes('把手舉高（或按 ↑ 鍵）開始遊戲！')&&!says.includes('換你了！'),`${record.file}: position-era prompt left`);
   }
   if(lesson===28){
-   const p=await project(bytes),B=checkGesture(p,record.file,'手勢'),v=(id:string)=>B[id].fields.VARIABLE[0];
+   const p=await project(bytes),B=checkGesture(p,record.file,'動作');
    assert.deepEqual(['g_set_up','g_set_left','g_set_right'].map(id=>B[id].inputs.VALUE[1][1]),['舉高','向左','向右']);
-   // ↓ resets 手勢 before 動作=手勢; ←→↑ override 動作 only while held.
-   assert.equal(B.g_remember.next,'b03157');assert.equal(v('b03160'),'手勢');assert.equal(B.b03157.next,'ollie_hand_apply');assert.equal(B.ollie_hand_apply.next,'b03145');
+   // Gestures are the only control: the loop ends after remembering the frame, with no arrow-key fallback.
+   assert.equal(B.g_remember.next,null);assert.ok(!Object.values<any>(p.targets[0].variables).some((v:any)=>v[0]==='手勢'));
    assert.equal(B.b03173.inputs.DURATION[1][1],String(GESTURE.confirm));
    // Opening tutorial in plain blocks (no custom blocks): each step waits for the real gesture or space (跳過教學).
    const host=p.targets.find((t:any)=>t.name==='主持人').blocks,steps:string[]=[];
