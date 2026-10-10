@@ -3,8 +3,10 @@ import {useEffect,useRef,useState} from 'react';
 import ScratchEditorFrame from '@/components/ScratchEditorFrame';
 import ExampleGallery from '@/components/ExampleGallery';
 import type {EditorAPI} from '@/lib/editor-protocol';
-import type {Example} from '@/lib/server/example-catalog';
-type Candidate = {preparedId:string;title:string;operationId:number};
+import type {Catalog,Example} from '@/lib/server/example-catalog';
+import {LESSON_PARAM,findLesson,lessonParam,withLesson} from '@/lib/lesson-param';
+// lesson: the `?lesson=` value for a bundled example, or null for an imported file.
+type Candidate = {preparedId:string;title:string;operationId:number;lesson:string|null};
 export default function Page() {
  const api=useRef<EditorAPI>(null),input=useRef<HTMLInputElement>(null);
  const operation=useRef<{id:number;controller:AbortController}|null>(null),serial=useRef(0);
@@ -29,7 +31,7 @@ export default function Page() {
   try {
    if(!api.current)throw Error('編輯器尚未就緒');
    await api.current.load(candidate.preparedId,downloadFirst);
-   if(current(candidate.operationId)){setGallery(false);setError('');}
+   if(current(candidate.operationId)){setGallery(false);setError('');window.history.replaceState(null,'',withLesson(location.href,candidate.lesson));}
   } catch(e) {if(current(candidate.operationId))setError(e instanceof Error?e.message:'載入失敗');}
   finally {release(candidate.operationId);}
  }
@@ -52,10 +54,30 @@ export default function Page() {
    // Ownership moves to the iframe; only an opaque reference remains in this page.
    const preparedId=await api.current.prepare(bytes,title.slice(0,300));
    if(!current(id)){api.current.discard(preparedId);return;}
-   const candidate={preparedId,title,operationId:id};
+   const candidate={preparedId,title,operationId:id,lesson:example?lessonParam(example.title):null};
    if(dirtyRef.current)setPending(candidate);else await perform(candidate);
   } catch(e) {if(current(id)){setError(e instanceof Error?e.message:'讀取檔案失敗');release(id);}}
  }
+ // Load the lesson named in `?lesson=` once, the first time the editor becomes ready.
+ const requested=useRef(false);
+ useEffect(()=>{
+  if(!ready || requested.current)return;
+  requested.current=true;
+  const wanted=new URLSearchParams(location.search).get(LESSON_PARAM);
+  if(!wanted)return;
+  void (async()=>{
+   try {
+    const r=await fetch('/api/examples',{cache:'no-store'});
+    if(!r.ok)throw Error('範例清單讀取失敗');
+    const example=findLesson((await r.json() as Catalog).examples,wanted);
+    if(!example)return setError(`找不到網址指定的課程：${wanted}`);
+    if(example.error)return setError(example.error);
+    await choose(example);
+   } catch(e) {setError(e instanceof Error?e.message:'範例清單讀取失敗');}
+  })();
+ // choose reads the latest state through refs; run only when readiness changes.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[ready]);
  function readiness(value:boolean) {
   setReady(value);
   if(!value) {
