@@ -20,7 +20,8 @@
     "editor:fetch": "node vendor/scratch-editor/source.cjs",
     "start:deploy": "next start --hostname 0.0.0.0",
     "examples:index": "node scripts/index-examples.cjs",
-    "postbuild": "node scripts/check-deployment.mjs"
+    "postbuild": "node scripts/check-deployment.mjs",
+    "examples:handpose": "node scripts/handpose-lessons.cjs"
   },
   "dependencies": {
     "crc-32": "1.2.2",

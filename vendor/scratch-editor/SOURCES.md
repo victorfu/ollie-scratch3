@@ -15,6 +15,7 @@
 6. Propagate VideoProvider getUserMedia errors instead of swallowing them. No changes to native Music implementation.
 7. Stub unused Microbit firmware URL (Microbit is not offered). Build the extension worker locally.
 8. Use our editor entry with the official GUI reducers/HOCs, actual VM, renderer, paint editor and Blockly. No HashParser, telemetry, cloud save, accounts or project-host fetches.
+9. `webpack.config.cjs` excludes `scratch-render-fonts` from the url-loader asset rule. That package inlines its costume fonts with `base64-loader!`; without the exclusion url-loader also ran and the fonts became base64 of a JS module string, so SVG costume text fell back to the browser's default serif font.
 
 Scratch subpackages are pinned to the GUI source commit's package-lock versions: render 1.0.35, paint 2.2.2, blocks 1.1.6, audio 1.0.28, storage 2.3.28, l10n 3.18.3, svg-renderer 2.0.13. This avoids newer packages with Webpack-5-only exports. React 16.14.0 is confined to this package tree. Root Next.js uses React 19.2.4. No cross-tree React overrides.
 

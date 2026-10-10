@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('web lesson 28 never recenters on lost hand, clears actions, reacquires and supports keyboard',async({page,request})=>{
+test('web lesson 28 holds gestures through dropouts and jitter, releases only in the 預備區, and supports keyboard',async({page,request})=>{
  const catalog=await (await request.get('/api/examples')).json();expect(catalog.examples).toHaveLength(28);
  await page.route('**/scratch-editor/ml5.min.js',r=>r.fulfill({contentType:'application/javascript',body:`
  window.packet=[];window.inflight=0;window.maxInflight=0;window.predictions=0;
@@ -14,10 +14,33 @@ test('web lesson 28 never recenters on lost hand, clears actions, reacquires and
  const feed=async(x:number,y:number)=>f.evaluate(({x,y})=>{const landmarks=Array.from({length:21},()=>[320,240,0]);landmarks[0]=[480,400,-10];landmarks[9]=[x,y,20];(window as any).packet=[{landmarks}];},{x,y});
  await ed.locator('img[class*=green-flag_green-flag]').click();await expect(page.locator('footer')).toContainText('單手辨識中');
  await expect.poll(async()=> (await read()).visible).toBe(false);
- await feed(80,200);await expect.poll(async()=> (await read()).x).toBe(180);await expect.poll(async()=> (await read()).action).toBe('向右');expect(await read()).toMatchObject({x:180,y:30,visible:true,detected:true});
+ // Record every 動作 value the VM goes through, so transient unlocks cannot hide between polls.
+ const trace=()=>f.evaluate(()=>{const w=window as any;w.actionTrace=[];clearInterval(w.actionTimer);w.actionTimer=setInterval(()=>{const v=w.vm.runtime.getTargetForStage().variables.v02926.value;if(w.actionTrace[w.actionTrace.length-1]!==v)w.actionTrace.push(v);},5);});
+ const traced=()=>f.evaluate(()=>(window as any).actionTrace as string[]);
+ await feed(80,200);await expect.poll(async()=> (await read()).x).toBe(180);await expect.poll(async()=> (await read()).lock).toBe(1);expect(await read()).toMatchObject({x:180,y:30,visible:true,detected:true,action:'向右'});
+ await trace();
+ // Jitter back across the right threshold into the dead zone keeps the held gesture.
+ await feed(210,200);await expect.poll(async()=> (await read()).x).toBe(83);
+ await feed(190,200);await expect.poll(async()=> (await read()).x).toBe(98);
+ // A short detection dropout (< 0.2s) neither hides the dot nor unlocks.
+ await f.evaluate(()=>(window as any).packet=[]);await page.waitForTimeout(80);await feed(80,200);await expect.poll(async()=> (await read()).detected).toBe(true);
+ await page.waitForTimeout(300);
+ expect(await traced()).toEqual(['向右']);expect(await read()).toMatchObject({action:'向右',lock:1,visible:true});
+ // A long loss hides the dot but never releases the gesture, so reappearing in the same zone cannot re-trigger.
  await f.evaluate(()=>(window as any).packet=[]);await expect.poll(async()=> (await read()).visible).toBe(false);
- await page.waitForTimeout(350);expect(await read()).toMatchObject({x:180,y:30,visible:false,detected:false,action:'預備',lock:0,handX:'',handY:''});
- await expect(page.locator('footer')).toContainText('未偵測到手');
+ await expect(page.locator('footer')).toContainText('未偵測到手');await page.waitForTimeout(1500);
+ expect(await read()).toMatchObject({x:180,y:30,visible:false,detected:false,action:'向右',lock:1,handX:'',handY:''});
+ await feed(80,200);await expect.poll(async()=> (await read()).visible).toBe(true);await page.waitForTimeout(300);
+ expect(await traced()).toEqual(['向右']);expect(await read()).toMatchObject({action:'向右',lock:1});
+ await f.evaluate(()=>clearInterval((window as any).actionTimer));
+ // ↓ releases a gesture left over from a lost hand; it stays 預備 after the key is released.
+ await f.evaluate(()=>(window as any).packet=[]);await expect.poll(async()=> (await read()).visible).toBe(false);
+ await ed.locator('[class*="stage_stage_"] canvas').click();await page.keyboard.down('ArrowDown');await expect.poll(async()=> (await read()).lock).toBe(0);
+ await page.keyboard.up('ArrowDown');await page.waitForTimeout(300);expect(await read()).toMatchObject({action:'預備',lock:0});
+ // Only the 預備區 (|x|<60, y<-20) releases a held gesture; the middle is a dead zone.
+ await feed(560,240);await expect.poll(async()=> (await read()).lock).toBe(1);expect((await read()).action).toBe('向左');
+ await feed(400,240);await expect.poll(async()=> (await read()).x).toBe(-60);await page.waitForTimeout(300);expect(await read()).toMatchObject({x:-60,y:0,visible:true,action:'向左',lock:1});
+ await feed(320,400);await expect.poll(async()=> (await read()).action).toBe('預備');await expect.poll(async()=> (await read()).lock).toBe(0);expect(await read()).toMatchObject({x:0,y:-120});
  await feed(400,240);await expect.poll(async()=> (await read()).x).toBe(-60);expect(await read()).toMatchObject({x:-60,y:0,visible:true,detected:true,action:'預備'});
  await f.evaluate(()=>(window as any).packet=[]);await expect.poll(async()=> (await read()).visible).toBe(false);
  // Keyboard fallback remains outside the validity guard.
@@ -32,7 +55,7 @@ test('web lesson 28 never recenters on lost hand, clears actions, reacquires and
  const questions:string[]=await f.evaluate(()=>(window as any).vm.runtime.getTargetForStage().variables.l02940.value);
  const poses:Record<string,[number,number]>={'向左':[560,240],'向右':[80,240],'舉高':[320,80]};
  for(let i=0;i<questions.length;i++){
-  await f.evaluate(()=>(window as any).packet=[]);await expect.poll(async()=> (await read()).action).toBe('預備');await expect.poll(async()=> (await read()).lock).toBe(0);
+  await feed(320,400);await expect.poll(async()=> (await read()).action).toBe('預備');await expect.poll(async()=> (await read()).lock).toBe(0);
   expect(poses[questions[i]]).toBeTruthy();await feed(...poses[questions[i]]);
   await expect.poll(()=>f.evaluate(()=>Number((window as any).vm.runtime.getTargetForStage().variables.v02932.value))).toBe(i+2);
  }

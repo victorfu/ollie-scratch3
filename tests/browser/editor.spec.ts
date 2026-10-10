@@ -109,6 +109,32 @@ test('all 28 official examples load sequentially without target or block residue
  }
 });
 
+test('every example block resolves to a VM opcode and every costume/sound asset really loads',async({page,request})=>{
+ const logs:string[]=[];page.on('console',m=>{if(['error','warning'].includes(m.type()))logs.push(m.text());});
+ await ready(page);const f=await inspectFrame(page);const catalog=await (await request.get('/api/examples')).json();
+ for(const example of catalog.examples){
+  await gallery(page);await page.getByRole('button',{name:new RegExp(example.title)}).click();await loaded(page,example.title);
+  const problems=await f.evaluate(()=>{const vm=(window as any).testVM,rt=vm.runtime,out:string[]=[];
+   for(const t of rt.targets.filter((t:any)=>t.isOriginal)){
+    for(const [id,b] of Object.entries<any>(t.blocks._blocks)){
+     if(b.shadow||['data_variable','data_listcontents'].includes(b.opcode))continue;
+     if(!rt._primitives[b.opcode]&&!rt._hats[b.opcode])out.push(`${t.getName()} ${id} unknown opcode ${b.opcode}`);
+    }
+    for(const c of t.sprite.costumes){
+     const size=rt.renderer._allSkins[c.skinId]?.size;
+     if(!c.asset||c.asset.assetId!==c.assetId||!c.asset.data.length||!size||!(size[0]>0&&size[1]>0))out.push(`${t.getName()} costume ${c.name} did not load`);
+    }
+    for(const s of t.sprite.sounds)if(!s.asset||s.asset.assetId!==s.assetId||!t.sprite.soundBank.soundPlayers[s.soundId])out.push(`${t.getName()} sound ${s.name} did not load`);
+   }
+   return out;});
+  expect(problems,example.title).toEqual([]);
+ }
+ // Costume fonts must decode (they are base64-inlined by scratch-render-fonts, not url-loader assets).
+ expect(await f.evaluate(()=>Promise.all(['Sans Serif','Serif','Handwriting','Marker','Curly','Pixel','Scratch'].map(n=>document.fonts.load(`16px "${n}"`).then(r=>r.length>0))))).toEqual(Array(7).fill(true));
+ // Blockly logs this harmlessly whenever an extension re-registers its blocks on load.
+ expect(logs.filter(l=>/asset|costume|sound|opcode|block|font|OTS/i.test(l)&&!/^Block definition #\d+ in JSON array overwrites prior definition/.test(l))).toEqual([]);
+});
+
 test('two simultaneous load requests are serialized by the real iframe',async({page,request})=>{
  await ready(page);const f=await inspectFrame(page);const catalog=await (await request.get('/api/examples')).json();
  const buffers=await Promise.all([catalog.examples[0],catalog.examples[3]].map(async e=>Array.from(await (await request.get(`/api/examples/${e.id}/project`)).body())));
