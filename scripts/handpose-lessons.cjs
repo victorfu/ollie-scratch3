@@ -7,7 +7,8 @@ const {createRequire}=require('node:module');
 const JSZip=createRequire(path.resolve(__dirname,'../vendor/scratch-editor/package.json'))('jszip');
 
 // Stage coordinates of landmark 10 (middle finger base). 預備 is |手X| < readyX and 手Y < readyY.
-const ZONES={left:-90,right:90,raise:50,readyX:60,readyY:-20,hideAfter:0.2};
+// confirm: seconds an action must hold before 動作成立 (the wait after setting 確認動作).
+const ZONES={left:-90,right:90,raise:50,readyX:60,readyY:-20,hideAfter:0.2,confirm:0.15};
 // The wrist (landmark 1) sits about 50 stage units below the middle finger base. readyY keeps its
 // 預備區 box (-115..-35) clear of the cover's license badge, whose stroke reaches y=-119.
 const ZONES_BY_LANDMARK={'10':ZONES,'1':{...ZONES,raise:40,readyY:-35}};
@@ -48,6 +49,8 @@ function applyZones(project,dims,zones=zonesFor(project)){
   const o1=b.inputs.OPERAND1&&b.inputs.OPERAND1[1],o2=b.inputs.OPERAND2;
   if(id==='ollie_ready_abs_lt'){changed+=literal(o2,zones.readyX);continue;}
   if(id==='ollie_hand_hide_gt'){changed+=literal(o2,zones.hideAfter);continue;}
+  const parent=ai.blocks[b.parent];
+  if(b.opcode==='control_wait'&&parent&&parent.opcode==='data_setvariableto'&&parent.fields.VARIABLE[0]==='確認動作'){changed+=literal(b.inputs.DURATION,zones.confirm);continue;}
   if(!['operator_lt','operator_gt'].includes(b.opcode)||!Array.isArray(o1)||o1[0]!==12||!['手X','手Y'].includes(o1[1]))continue;
   const key=`${o1[1]}${b.opcode==='operator_lt'?'<':'>'}`;
   const value={'手X<':zones.left,'手X>':zones.right,'手Y>':zones.raise,'手Y<':zones.readyY}[key];
