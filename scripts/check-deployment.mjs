@@ -20,5 +20,5 @@ const html=await readFile(path.join(root,'public/scratch-editor/index.html'),'ut
 const scripts=[...html.matchAll(/src="(\/scratch-editor\/[^"?]+\.js)"/g)];
 if(!scripts.length)throw Error('Scratch editor entry script is missing');
 for(const [,url]of scripts)await access(path.join(root,'public',url));
-for(const name of ['ml5.min.js','extension-worker.js'])await access(path.join(root,'public/scratch-editor',name));
+for(const name of ['extension-worker.js'])await access(path.join(root,'public/scratch-editor',name));
 console.log(`Deployment assets verified: ${actual.length} SB3 examples in both API traces; Scratch editor assets present.`);

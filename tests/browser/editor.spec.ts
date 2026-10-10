@@ -21,7 +21,7 @@ test('real workspace / official 28 examples / sequential loads / unsaved flows /
  const f=await inspectFrame(page);const before=await f.evaluate(()=>({targets:(window as any).testVM.runtime.targets.map((t:any)=>t.getName()),blocks:(window as any).testVM.runtime.targets.map((t:any)=>Object.keys(t.blocks._blocks).length)}));
  await choose(page,'第08課');await loaded(page,'第08課');
  const after=await f.evaluate(()=>({targets:(window as any).testVM.runtime.targets.map((t:any)=>t.getName()),blocks:(window as any).testVM.runtime.targets.map((t:any)=>Object.keys(t.blocks._blocks).length),camera:(window as any).testVM.runtime.ioDevices.video.provider.enabled}));
- expect(after.targets.length).toBe(4);expect(after.targets).not.toEqual(before.targets);expect(after.blocks).not.toEqual(before.blocks);expect(after.camera).not.toBe(true);
+ expect(after.targets.length).toBe(4);expect(after.targets).not.toEqual(before.targets);expect(after.blocks).not.toEqual(before.blocks);
  await expect(editor(page).locator('.blocklyBlockCanvas').first()).toBeVisible();
  const title=editor(page).getByRole('textbox',{name:'在這輸入專案名稱'});await title.fill('尚未儲存的修改');await title.press('Tab');
  await choose(page,'第02課');await expect(page.getByRole('dialog',{name:'保留目前的修改嗎？'})).toBeVisible();await page.getByRole('button',{name:'取消',exact:true}).click();await page.getByRole('button',{name:'關閉範例'}).click();await expect(title).toHaveValue('尚未儲存的修改');
@@ -46,28 +46,34 @@ test('invalid / unsupported / read error preserve project; Music produces real a
  expect(await f.evaluate(()=>(window as any).testVM.runtime.audioEngine.audioContext.state)).toBe('running');
 });
 
-test('fake camera permission / stop / switch lifecycle; model failure explicit',async({page})=>{
- await ready(page);const f=await inspectFrame(page);await choose(page,'第08課');await loaded(page,'第08課');
- expect(await f.evaluate(()=>(window as any).testVM.runtime.ioDevices.video.provider.enabled)).not.toBe(true);
- // Failure injection is explicitly model network failure, never a fake hand prediction.
+test('official Handpose2Scratch: loading a Handpose lesson opens the camera with its notice, keeps it across stop and switch, English blocks only',async({page})=>{
+ // Offline: the official extension downloads its model from TF Hub on load.
  await page.route(/tfhub.dev|storage.googleapis.com|kaggle.com/,route=>route.abort());
- await editor(page).getByRole('button',{name:'開啟相機',exact:true}).click();
- await expect(page.locator('footer')).toContainText(/模型載入失敗|模型下載逾時|推論失敗/,{timeout:80000});
- await editor(page).getByRole('button',{name:'停止相機'}).click();await expect(page.locator('footer')).toContainText('已停止');
- expect(await f.evaluate(()=>(window as any).testVM.runtime.handpose.active)).toBe(false);
- await page.unroute(/tfhub.dev|storage.googleapis.com|kaggle.com/);
- await editor(page).getByRole('button',{name:'開啟相機',exact:true}).click();
+ const notices:string[]=[];page.on('dialog',d=>{notices.push(d.message());d.dismiss();});
+ await ready(page);const f=await inspectFrame(page);
+ expect(await editor(page).getByRole('button',{name:'開啟相機'}).count()).toBe(0);
+ await choose(page,'第08課');await loaded(page,'第08課');
+ // Like the official editor, the extension opens the camera as soon as the project loads, then shows its notice.
  await expect.poll(()=>f.evaluate(()=>Boolean((window as any).testVM.runtime.ioDevices.video.provider.video?.srcObject))).toBe(true);
- await f.evaluate(()=>{(window as any).previousTracks=(window as any).testVM.runtime.ioDevices.video.provider.video.srcObject.getTracks();});
+ await expect.poll(()=>notices.join()).toContain('Setup takes a while');
+ const labels:string=await f.evaluate(()=>[...document.querySelectorAll('.blocklyFlyout .blocklyText')].map(t=>(t.textContent||'').replace(/\u00a0/g,' ')).join('|'));
+ expect(labels).toContain('x of');expect(labels).toContain('set ratio to');expect(labels).not.toContain('偵測到手');
+ await f.evaluate(()=>{(window as any).officialTracks=(window as any).testVM.runtime.ioDevices.video.provider.video.srcObject.getTracks();});
+ await editor(page).locator('img[class*=stop-all_stop-all]').click();await page.waitForTimeout(300);
  await choose(page,'第01課');const dialog=page.getByRole('dialog',{name:'保留目前的修改嗎？'});if(await dialog.isVisible())await page.getByRole('button',{name:'直接載入',exact:true}).click();await loaded(page,'第01課');
- expect(await f.evaluate(()=>(window as any).previousTracks.every((t:MediaStreamTrack)=>t.readyState==='ended'))).toBe(true);
- expect(await f.evaluate(()=>(window as any).testVM.runtime.handpose.landmarks.length)).toBe(0);
+ expect(await f.evaluate(()=>(window as any).officialTracks.every((t:MediaStreamTrack)=>t.readyState==='live'))).toBe(true);
+ expect(notices).toHaveLength(1);
 });
 
-test('camera denial is visible and retry does not duplicate listeners',async({browser})=>{
+test('a Handpose lesson still loads and runs when camera permission is denied',async({browser})=>{
  const context=await browser.newContext({permissions:[]});const page=await context.newPage();
  await context.addInitScript(()=>{Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:()=>Promise.reject(new DOMException('Permission denied','NotAllowedError'))});});
- await ready(page);await editor(page).getByRole('button',{name:'開啟相機',exact:true}).click();await expect(page.locator('footer')).toContainText('權限遭拒');await editor(page).getByRole('button',{name:'停止相機'}).click();await expect(page.locator('footer')).toContainText('已停止');await context.close();
+ await page.route(/tfhub.dev|storage.googleapis.com|kaggle.com/,route=>route.abort());page.on('dialog',d=>d.dismiss());
+ await ready(page);const f=await inspectFrame(page);await choose(page,'第08課');await loaded(page,'第08課');
+ await editor(page).locator('img[class*=green-flag_green-flag]').first().click();
+ // No hand data: the official getX/getY report empty, which rounds to 0.
+ await expect.poll(()=>f.evaluate(()=>{const v:any=Object.values((window as any).testVM.runtime.getTargetForStage().variables).find((v:any)=>v.name==='手X');return v&&v.value;})).toBe(0);
+ await context.close();
 });
 
 test('backup failure blocks replacement; VM failure restores; recovery failure offers real backup',async({page})=>{
@@ -110,10 +116,17 @@ test('all 28 official examples load sequentially without target or block residue
 });
 
 test('every example block resolves to a VM opcode and every costume/sound asset really loads',async({page,request})=>{
+ test.setTimeout(300000);
+ // Keep the official extension from downloading and running the model while 28 lessons load one by one.
+ await page.route(/tfhub.dev|storage.googleapis.com|kaggle.com/,route=>route.abort());
  const logs:string[]=[];page.on('console',m=>{if(['error','warning'].includes(m.type()))logs.push(m.text());});
  await ready(page);const f=await inspectFrame(page);const catalog=await (await request.get('/api/examples')).json();
  for(const example of catalog.examples){
-  await gallery(page);await page.getByRole('button',{name:new RegExp(example.title)}).click();await loaded(page,example.title);
+  await gallery(page);await page.getByRole('button',{name:new RegExp(example.title)}).click();
+  // Switching sprites below marks the project changed, so the next load may ask first; load it directly.
+  const direct=page.getByRole('button',{name:'直接載入',exact:true});
+  await Promise.race([direct.waitFor({timeout:3000}).then(()=>direct.click()).catch(()=>{}),expect(page.locator('dialog')).toHaveCount(0,{timeout:3000}).catch(()=>{})]);
+  await loaded(page,example.title);
   const problems=await f.evaluate(()=>{const vm=(window as any).testVM,rt=vm.runtime,out:string[]=[];
    for(const t of rt.targets.filter((t:any)=>t.isOriginal)){
     for(const [id,b] of Object.entries<any>(t.blocks._blocks)){
@@ -128,6 +141,15 @@ test('every example block resolves to a VM opcode and every costume/sound asset 
    }
    return out;});
   expect(problems,example.title).toEqual([]);
+  // No two scripts of any sprite may overlap in the workspace (students read these as reference answers).
+  const names:string[]=await f.evaluate(()=>(window as any).testVM.runtime.targets.filter((t:any)=>t.isOriginal).map((t:any)=>t.getName()));
+  for(const name of names){
+   await f.evaluate(name=>{const vm=(window as any).testVM;vm.setEditingTarget(vm.runtime.targets.find((t:any)=>t.getName()===name).id);},name);
+   await expect.poll(()=>f.evaluate(name=>(window as any).testVM.editingTarget.getName(),name)).toBe(name);await page.waitForTimeout(300);
+   const overlaps=await f.evaluate(()=>{const bs=(window as any).Blockly.getMainWorkspace().getTopBlocks(false).map((b:any)=>{const xy=b.getRelativeToSurfaceXY(),hw=b.getHeightWidth();return {id:b.id,l:xy.x,t:xy.y,r:xy.x+hw.width,b:xy.y+hw.height};});
+    return bs.flatMap((A:any,i:number)=>bs.slice(i+1).filter((B:any)=>!(A.r<=B.l||B.r<=A.l||A.b<=B.t||B.b<=A.t)).map((B:any)=>`${A.id}~${B.id}`));});
+   expect(overlaps,`${example.title} / ${name}`).toEqual([]);
+  }
  }
  // Costume fonts must decode (they are base64-inlined by scratch-render-fonts, not url-loader assets).
  expect(await f.evaluate(()=>Promise.all(['Sans Serif','Serif','Handwriting','Marker','Curly','Pixel','Scratch'].map(n=>document.fonts.load(`16px "${n}"`).then(r=>r.length>0))))).toEqual(Array(7).fill(true));
@@ -149,24 +171,3 @@ test('two simultaneous load requests are serialized by the real iframe',async({p
  expect(results).toEqual([{id:'queue-a',ok:true},{id:'queue-b',ok:true}]);await expect(editor(page).getByRole('textbox',{name:'在這輸入專案名稱'})).toHaveValue('Queued B');expect(await f.evaluate(()=>(window as any).testVM.runtime.targets.filter((t:any)=>t.isOriginal).length)).toBe(3);
 });
 
-test('lesson 28 green flag opens camera without toolbar; restart and switching stop tracks',async({page})=>{
- await ready(page);const f=await inspectFrame(page);
- await choose(page,'第28課');await loaded(page,'第28課');
- expect(await f.evaluate(()=>Boolean((window as any).testVM.runtime.ioDevices.video.provider.enabled))).toBe(false);
- const flag=editor(page).locator('img[class*=green-flag_green-flag]').first();
- await flag.click();
- await expect.poll(()=>f.evaluate(()=>Boolean((window as any).testVM.runtime.ioDevices.video.provider.video?.srcObject))).toBe(true);
- // Restart while model download may still be pending. No extra toolbar gesture.
- await flag.click();
- await expect(page.locator('footer')).toContainText('單手辨識中',{timeout:80000});
- await f.evaluate(()=>{(window as any).capturedTracks=(window as any).testVM.runtime.ioDevices.video.provider.video.srcObject.getTracks();});
- await editor(page).locator('img[class*=stop-all_stop-all]').click();
- await expect.poll(()=>f.evaluate(()=>(window as any).capturedTracks.every((t:MediaStreamTrack)=>t.readyState==='ended'))).toBe(true);
- await flag.click();await expect(page.locator('footer')).toContainText('單手辨識中');
- await choose(page,'第01課');
- const confirm=page.getByRole('dialog',{name:'保留目前的修改嗎？'});
- if(await confirm.isVisible())await page.getByRole('button',{name:'直接載入',exact:true}).click();
- await loaded(page,'第01課');await flag.click();
- await page.waitForTimeout(300);
- expect(await f.evaluate(()=>Boolean((window as any).testVM.runtime.ioDevices.video.provider.enabled))).toBe(false);
-});

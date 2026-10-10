@@ -5,7 +5,7 @@ Next.js App Router（React 19）只負責同網域 iframe、範例 dialog、未�
 ```
 Next React → postMessage → 同網域 Scratch GUI + VM + Blockly + renderer
     ↓                          ↓ Music 本機內嵌 MP3 / Handpose ml5
-Node Route Handlers       攝影機只在使用者明確操作後啟動
+Node Route Handlers       Handpose 為官方擴充：載入作品時開啟相機
     ↓
 examples/web（隨 Git 部署）；可用 server-only SCRATCH_EXAMPLES_DIR 覆寫
 ```

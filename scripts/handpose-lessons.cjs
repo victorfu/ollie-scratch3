@@ -1,83 +1,50 @@
-// Apply the hand-zone thresholds to every Handpose lesson in examples/web (idempotent).
-// Edit ZONES / ZONES_BY_LANDMARK (the 預備區 box and lesson 10's note follow), run `npm run examples:handpose`, then `npm run examples:index` and commit both.
-// Only literal values are rewritten; block structure (docs/hand-tracking-fix.md) is untouched.
+// Apply the hand-gesture thresholds to every Handpose lesson in examples/web (idempotent).
+// Edit GESTURE, run `npm run examples:handpose`, then `npm run examples:index` and commit both.
+// Only literal values and the lesson note are rewritten; block structure is in docs/hand-tracking-fix.md.
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createRequire}=require('node:module');
 const JSZip=createRequire(path.resolve(__dirname,'../vendor/scratch-editor/package.json'))('jszip');
 
-// Stage coordinates of landmark 10 (middle finger base). 預備 is |手X| < readyX and 手Y < readyY.
-// confirm: seconds an action must hold before 動作成立 (the wait after setting 確認動作).
-const ZONES={left:-90,right:90,raise:50,readyX:60,readyY:-20,hideAfter:0.2,confirm:0.15};
-// The wrist (landmark 1) sits about 50 stage units below the middle finger base. readyY keeps its
-// 預備區 box (-115..-35) clear of the cover's license badge, whose stroke reaches y=-119.
-const ZONES_BY_LANDMARK={'10':ZONES,'1':{...ZONES,raise:40,readyY:-35}};
-// The 預備區 box is derived from the 預備 rule: its sides sit at ±readyX and its top edge at readyY.
-// `dims` is the costume's [width,height]; the rotation center may sit anywhere inside it.
-// Size is rounded to 0.1% and position to whole numbers (each derived from the rounded size), so every
-// edge stays within 0.5 + width·0.0005 (< 1) of the rule.
-function zoneBox(zones,costume,[width]){
- const size=Math.round(2*zones.readyX/width*1000)/10,scale=size/100;
- return {size,x:Math.round(costume.rotationCenterX*scale-zones.readyX),y:Math.round(zones.readyY-costume.rotationCenterY*scale)};
-}
-// [width,height] of the 預備區 costume SVG, or null when the lesson has no 預備區.
-async function readBoxDims(zip,project){
- const zone=project.targets.find(t=>t.name==='預備區');if(!zone)return null;
- const svg=await zip.file(zone.costumes[zone.currentCostume].md5ext).async('string');
- const view=/viewBox="[\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)"/.exec(svg)||/width="([\d.]+)"[^>]*height="([\d.]+)"/.exec(svg);
- if(!view)throw new Error('預備區 costume has no viewBox or width/height');
- return [Number(view[1]),Number(view[2])];
-}
-const readyNote=z=>`預備：手要放在下方中間（|手X| < ${z.readyX} 且 手Y < ${z.readyY}）。\n第 11 課會加上「預備區」方框標出這個範圍。`;
-// Pick thresholds from the landmark the lesson actually reads, so they can't drift apart.
-function zonesFor(project){
- const ai=project.targets.find(t=>t.name==='AI偵測');if(!ai)return null;
- const used=[...new Set(Object.values(ai.blocks).filter(b=>b&&b.opcode==='handpose2scratch_menu_landmark').map(b=>b.fields.landmark[0]))];
- if(used.length>1)throw new Error(`AI偵測 mixes landmarks ${used.join(', ')}`);
- if(!used.length)return null;
- const zones=ZONES_BY_LANDMARK[used[0]];if(!zones)throw new Error(`no thresholds for landmark ${used[0]}`);
- return zones;
-}
-module.exports={ZONES,ZONES_BY_LANDMARK,zonesFor,zoneBox,readBoxDims,readyNote};
+// Gestures read the wrist (1), middle finger base (10) and tip (13) with the official x/y blocks.
+// 指尖距離 / 指根距離 below `fist` = 握拳 (預備); above `open` = open hand, whose wrist→tip direction
+// must beat the other axis by `direction`× to count; `minBase` skips empty or tiny hands;
+// `confirm` is how long an action must hold before 動作成立 (lessons 15+).
+const GESTURE={fist:1.3,open:1.6,direction:1.5,minBase:10,confirm:0.15};
+const LANDMARKS='1,10,13';
+module.exports={GESTURE,LANDMARKS};
+
+const MOVES=[['g_set_up','手指朝上＝舉高'],['g_set_left','朝左＝向左'],['g_set_right','朝右＝向右']];
+const gestureNote=(z,moves)=>`手勢判斷（只用官方積木）：\n握拳＝預備；手張開時，${moves.join('、')}。\n方向＝手腕(1)→中指尖(13)；握拳看「指尖距離」是否小於「指根距離」(手腕→中指根部(10)) 的 ${z.fist} 倍。\n用的是比例，手離鏡頭遠近都一樣。手離開畫面時官方擴充會保留最後的座標，所以只在「方向X」有變化（有新畫面）時才判斷。`;
+module.exports.gestureNote=gestureNote;
 
 const literal=(input,value)=>{const v=String(value);if(input[1][1]===v)return false;input[1][1]=v;return true;};
-function applyZones(project,dims,zones=zonesFor(project)){
- const ai=project.targets.find(t=>t.name==='AI偵測');if(!ai||!zones)return 0;
- let changed=0;
- for(const [id,b] of Object.entries(ai.blocks)){
-  if(!b||Array.isArray(b))continue;
-  const o1=b.inputs.OPERAND1&&b.inputs.OPERAND1[1],o2=b.inputs.OPERAND2;
-  if(id==='ollie_ready_abs_lt'){changed+=literal(o2,zones.readyX);continue;}
-  if(id==='ollie_hand_hide_gt'){changed+=literal(o2,zones.hideAfter);continue;}
-  const parent=ai.blocks[b.parent];
-  if(b.opcode==='control_wait'&&parent&&parent.opcode==='data_setvariableto'&&parent.fields.VARIABLE[0]==='確認動作'){changed+=literal(b.inputs.DURATION,zones.confirm);continue;}
-  if(!['operator_lt','operator_gt'].includes(b.opcode)||!Array.isArray(o1)||o1[0]!==12||!['手X','手Y'].includes(o1[1]))continue;
-  const key=`${o1[1]}${b.opcode==='operator_lt'?'<':'>'}`;
-  const value={'手X<':zones.left,'手X>':zones.right,'手Y>':zones.raise,'手Y<':zones.readyY}[key];
-  if(value===undefined)throw new Error(`unexpected hand comparison ${id} ${key}`);
-  changed+=literal(o2,value);
+// Returns the number of values changed (0 for lessons without gesture blocks or already in sync).
+function applyGesture(project,z=GESTURE){
+ const ai=project.targets.find(t=>t.name==='AI偵測');if(!ai)return 0;
+ const B=ai.blocks;let changed=0;
+ for(const b of Object.values(B)){
+  const parent=b&&B[b.parent];
+  if(b&&b.opcode==='control_wait'&&parent&&parent.opcode==='data_setvariableto'&&parent.fields.VARIABLE[0]==='確認動作')changed+=literal(b.inputs.DURATION,z.confirm);
  }
- const note=ai.comments&&ai.comments.ollie_ready_note;
- if(note&&note.text!==readyNote(zones)){note.text=readyNote(zones);changed++;}
- const zone=project.targets.find(t=>t.name==='預備區');
- if(zone){
-  if(!dims)throw new Error('lessons with a 預備區 need dims: applyZones(project, await readBoxDims(zip, project))');
-  const blocks=Object.values(zone.blocks),goto=blocks.find(b=>b.opcode==='motion_gotoxy'),size=blocks.find(b=>b.opcode==='looks_setsizeto');
-  if(!goto||!size)throw new Error('預備區 must have go to x:y and set size blocks');
-  const box=zoneBox(zones,zone.costumes[zone.currentCostume],dims);
-  changed+=literal(goto.inputs.X,box.x)+literal(goto.inputs.Y,box.y)+literal(size.inputs.SIZE,box.size);
-  if(zone.x!==box.x||zone.y!==box.y||zone.size!==box.size){Object.assign(zone,box);changed++;}
- }
+ if(!B.g_if_hand)return changed;
+ const used=[...new Set(Object.values(B).filter(b=>b&&b.opcode==='handpose2scratch_menu_landmark').map(b=>b.fields.landmark[0]))].sort((a,b)=>a-b).join(',');
+ if(used!==LANDMARKS)throw new Error(`gesture lesson must read landmarks ${LANDMARKS}, found ${used}`);
+ changed+=literal(B.g_fist_t.inputs.NUM2,z.fist)+literal(B.g_open_t.inputs.NUM2,z.open)+literal(B.g_has_hand.inputs.OPERAND2,z.minBase)+literal(B.g_up_t.inputs.NUM2,z.direction);
+ if(B.g_left_t)changed+=literal(B.g_left_t.inputs.NUM2,-z.direction);
+ if(B.g_right_t)changed+=literal(B.g_right_t.inputs.NUM2,z.direction);
+ const note=ai.comments&&ai.comments.g_note,text=gestureNote(z,MOVES.filter(([id])=>B[id]).map(([,t])=>t));
+ if(note&&note.text!==text){note.text=text;changed++;}
  return changed;
 }
-module.exports.applyZones=applyZones;
+module.exports.applyGesture=applyGesture;
 
 if(require.main===module)(async()=>{
  const root=path.resolve(__dirname,'../examples/web');
  for(const file of (await fs.readdir(root)).filter(f=>f.endsWith('.sb3')).sort()){
   const zip=await JSZip.loadAsync(await fs.readFile(path.join(root,file)));
   const project=JSON.parse(await zip.file('project.json').async('string'));
-  const changed=applyZones(project,await readBoxDims(zip,project));if(!changed)continue;
+  const changed=applyGesture(project);if(!changed)continue;
   zip.file('project.json',JSON.stringify(project));
   await fs.writeFile(path.join(root,file),await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
   console.log(`${file}: ${changed} value(s) updated`);

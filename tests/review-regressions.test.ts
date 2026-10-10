@@ -16,7 +16,7 @@ const parse=(bytes:Buffer)=>new Promise<any>((resolve,reject)=>parser(bytes,fals
 
 test('validator and VM parser agree on one project, reject both ambiguity orders',async()=>{
  const base=await JSZip.loadAsync(await readFile('tests/fixtures/minimal.sb3'));
- const normal=JSON.parse(await base.file('project.json').async('string')),other=structuredClone(normal);other.extensions=['pen'];
+ const normal=JSON.parse(await base.file('project.json').async('string')),other=structuredClone(normal);other.extensions=['videoSensing'];
  for(const nestedFirst of [true,false]){
   const zip=new JSZip();if(nestedFirst)zip.file('x/project.json',JSON.stringify(other));
   for(const [name,entry]of Object.entries(base.files) as any)if(!entry.dir)zip.file(name,await entry.async('nodebuffer'));
@@ -25,7 +25,7 @@ test('validator and VM parser agree on one project, reject both ambiguity orders
  }
  const folder=new JSZip();for(const [name,entry]of Object.entries(base.files) as any)if(!entry.dir)folder.file('folder/'+name,await entry.async('nodebuffer'));
  const bytes=await folder.generateAsync({type:'nodebuffer'});assert.deepEqual(await validateSB3(bytes),{extensions:[]});assert.equal((await parse(bytes)).targets.length,normal.targets.length);
- folder.file('folder/project.json',JSON.stringify(other));await assert.rejects(validateSB3(await folder.generateAsync({type:'nodebuffer'})),/不支援 pen/);
+ folder.file('folder/project.json',JSON.stringify(other));await assert.rejects(validateSB3(await folder.generateAsync({type:'nodebuffer'})),/不支援 videoSensing/);
 });
 test('Host guard rejects rebinding hosts before origin checks and permits explicit deployments',()=>{
  for(const host of ['localhost','localhost:3000','127.0.0.1:3103','[::1]:3000'])assert.equal(allowedHost(host),true);

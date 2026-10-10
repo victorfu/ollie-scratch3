@@ -9,7 +9,7 @@ export default forwardRef<EditorAPI,Props>(function ScratchEditorFrame(props,ref
  const connectTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
  const connectRetry=useRef<ReturnType<typeof setInterval>|undefined>(undefined);
  const listening=useRef(false),blocked=useRef<string|null>(null);
- const [state,setState]=useState('正在準備 Scratch 編輯器…'),[camera,setCamera]=useState('攝影機未開啟'),[backup,setBackup]=useState<{bytes:ArrayBuffer;title:string;sessionId:string}|null>(null);
+ const [state,setState]=useState('正在準備 Scratch 編輯器…'),[backup,setBackup]=useState<{bytes:ArrayBuffer;title:string;sessionId:string}|null>(null);
  const invalidate=()=>{session.current='';blocked.current=null;callbacks.current.onReady(false);for(const p of pending.current.values()){clearTimeout(p.timer);p.reject(Error('編輯器 session 已結束'));}pending.current.clear();};
  function stopConnecting() {
   clearTimeout(connectTimer.current);clearInterval(connectRetry.current);
@@ -19,7 +19,7 @@ export default forwardRef<EditorAPI,Props>(function ScratchEditorFrame(props,ref
   // onLoad may run before the parent effect, or before hydration attaches it.
   // The effect starts the same handshake after installing its message listener.
   if(!listening.current)return;
-  stopConnecting();invalidate();setCamera('正在確認攝影機狀態…');setState('正在初始化 Scratch 舞台與積木…');
+  stopConnecting();invalidate();setState('正在初始化 Scratch 舞台與積木…');
   const requestId=crypto.randomUUID();handshake.current=requestId;
   const probe=()=>frame.current?.contentWindow?.postMessage(envelope('connect','',requestId),location.origin);
   connectRetry.current=setInterval(probe,500);
@@ -63,7 +63,6 @@ export default forwardRef<EditorAPI,Props>(function ScratchEditorFrame(props,ref
    if(m.type==='import-request')callbacks.current.onImport();
    if(m.type==='export-request')api.export().catch(e=>callbacks.current.onError(e.message));
    if(m.type==='dirty')callbacks.current.onDirty(Boolean(m.dirty));
-   if(m.type==='camera')setCamera(m.message || '');
    if(m.type==='result'){
     if(m.backup)setBackup({bytes:m.backup,title:m.title||'復原備份',sessionId:m.sessionId});
     if(blocked.current===m.requestId){blocked.current=null;setState('');callbacks.current.onReady(true);if(m.ok)setBackup(null);else callbacks.current.onError(m.error||'編輯器操作失敗');}
@@ -89,7 +88,7 @@ export default forwardRef<EditorAPI,Props>(function ScratchEditorFrame(props,ref
   <iframe ref={frame} src="/scratch-editor/index.html" title="Scratch 3 編輯器" allow="camera; microphone; autoplay" onLoad={connect}/>
   </div>
   {state&&<div className="editor-status" role="status">{state}</div>}
-  <footer><span className="status-dot"/>{camera}<span className="footer-right">作品留在本機 · Scratch 3 工作室</span></footer>
+  <footer><span className="footer-right">作品留在本機 · Scratch 3 工作室</span></footer>
   {backup&&<div className="recovery" role="alert">{backup.sessionId===session.current?'復原未完成。':'先前作品的復原備份。'}<button onClick={()=>download(backup.bytes,backup.title+'-復原備份')}>下載可用備份</button></div>}
  </section>;
 });

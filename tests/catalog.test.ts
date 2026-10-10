@@ -23,6 +23,6 @@ test('catalog states and boundary / unchanged binary / corrupt isolation',async(
 });
 test('ZIP validation rejects missing project / unsupported IDs and accepts real fixture',async()=>{
  assert.deepEqual((await validateSB3(await readFile('tests/fixtures/music.sb3'))).extensions,['music']);
- await assert.rejects(validateSB3(await readFile('tests/fixtures/unsupported.sb3')),/extension 相容性.*pen/);
+ await assert.rejects(validateSB3(await readFile('tests/fixtures/unsupported.sb3')),/extension 相容性.*videoSensing/);
  await assert.rejects(validateSB3(Buffer.from('bad')),/ZIP/);
 });

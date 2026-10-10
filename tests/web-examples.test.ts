@@ -6,7 +6,30 @@ import {createRequire} from 'node:module';
 import {validateSB3} from '../lib/server/sb3';
 const load=createRequire(process.cwd()+'/package.json'),JSZip=load('./vendor/scratch-editor/node_modules/jszip');
 // Thresholds come from the script that writes them, so tuning them never needs test edits.
-const {ZONES_BY_LANDMARK,zoneBox,readBoxDims,readyNote,applyZones}=load('./scripts/handpose-lessons.cjs'),WRIST=ZONES_BY_LANDMARK['1'];
+const {GESTURE,LANDMARKS,gestureNote,applyGesture}=load('./scripts/handpose-lessons.cjs');
+const project=async(bytes:Buffer)=>JSON.parse(await (await JSZip.loadAsync(bytes)).file('project.json').async('string'));
+
+// Every Handpose lesson from 9 on judges the same gestures; returns the AI偵測 blocks after checking them.
+function checkGesture(p:any,file:string,action:string){
+ const ai=p.targets.find((t:any)=>t.name==='AI偵測'),B=ai.blocks,v=(id:string)=>B[id].fields.VARIABLE[0],op2=(id:string)=>B[id].inputs.OPERAND2;
+ // Wrist (1), middle finger base (10) and tip (13): hand shape and direction, not position.
+ const marks=[...new Set(Object.values<any>(B).filter((b:any)=>b.opcode==='handpose2scratch_menu_landmark').map((b:any)=>b.fields.landmark[0]))];
+ assert.equal(marks.sort((a,b)=>Number(a)-Number(b)).join(','),LANDMARKS,file);
+ assert.deepEqual(['g_dx','g_dy','g_tip','g_base'].map(v),['方向X','方向Y','指尖距離','指根距離'],file);
+ // No position checks remain.
+ assert.ok(!Object.values<any>(B).some((b:any)=>['operator_lt','operator_gt'].includes(b.opcode)&&['手X','手Y'].includes(b.inputs.OPERAND1?.[1]?.[1])),file);
+ // 握拳 = 預備; open hand then finger direction, each writing the lesson's action variable.
+ assert.equal(B.g_fist.opcode,'operator_lt');assert.equal(B.g_open.opcode,'operator_gt');assert.equal(v('g_set_ready'),action);assert.equal(B.g_set_ready.inputs.VALUE[1][1],'預備');
+ // Only a real hand and only new frames are judged: the official extension keeps the last landmarks.
+ assert.equal(B.g_if_hand.inputs.CONDITION[1],'g_new_and');assert.deepEqual([B.g_new_eq.inputs.OPERAND1[1][1],B.g_new_eq.inputs.OPERAND2[1][1]],['方向X','上次方向X']);
+ assert.equal(B.g_if_hand.next,'g_remember');assert.equal(v('g_remember'),'上次方向X');
+ // The red dot follows the wrist and stays visible; the position box is unused and hidden.
+ assert.equal(ai.visible,true,file);assert.ok(!Object.values<any>(B).some((b:any)=>b.opcode==='looks_hide'),file);
+ const zone=p.targets.find((t:any)=>t.name==='預備區');
+ if(zone){assert.equal(zone.visible,false,file);assert.ok(Object.values<any>(zone.blocks).some((b:any)=>b.opcode==='looks_hide'),file);}
+ return B;
+}
+
 test('all bundled deployment examples match the manifest and load without a private source directory',async()=>{
  const manifest=JSON.parse(await readFile('examples/web/manifest.json','utf8'));
  assert.equal(manifest.files.length,28);
@@ -16,82 +39,50 @@ test('all bundled deployment examples match the manifest and load without a priv
   const bytes=await readFile('examples/web/'+record.file);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),record.sha256);
   await validateSB3(bytes);
-  if(record.file==='第28課_完成作品.sb3'){
-   const zip=await JSZip.loadAsync(bytes),project=JSON.parse(await zip.file('project.json').async('string'));
-   const ai=project.targets.find((t:any)=>t.name==='AI偵測');
-   // Every Handpose lesson (7–28) tracks the wrist, landmark 1.
-   assert.equal(ai.blocks.b03127.fields.landmark[0],'1');assert.equal(ai.blocks.b03131.fields.landmark[0],'1');
-   assert.equal(ai.blocks.ollie_hand_valid.opcode,'handpose2scratch_isHandDetected');
-   assert.equal(ai.visible,false);
-   // Hysteresis: zones update the sticky 手勢; only the shrunken 預備區 resets it.
-   const op2=(id:string)=>ai.blocks[id].inputs.OPERAND2[1][1];
-   assert.deepEqual([op2('ollie_ready_abs_lt'),op2('b03134'),op2('b03137'),op2('b03140'),op2('b03143')],[WRIST.readyX,WRIST.readyY,WRIST.left,WRIST.right,WRIST.raise].map(String));
-   for(const id of ['b03135','b03138','b03141','b03144','b03160'])assert.equal(ai.blocks[id].fields.VARIABLE[1],'ollie_v_gesture');
-   assert.equal(ai.blocks.ollie_hand_apply.inputs.VALUE[1][2],'ollie_v_gesture');
-   assert.equal(op2('ollie_hand_hide_gt'),String(WRIST.hideAfter));
-   // A lost hand never releases the gesture (no re-trigger when it reappears in the same zone).
-   assert.ok(!Object.keys(ai.blocks).some(id=>id.includes('forget')));
-   const zone=project.targets.find((t:any)=>t.name==='預備區');
-   const box=zoneBox(WRIST,zone.costumes[0],await readBoxDims(zip,project));assert.equal(zone.blocks.ollie_zone_size.inputs.SIZE[1][1],String(box.size));assert.equal(zone.y,box.y);assert.equal(zone.visible,true);
-   // The forever loop must not reset 動作 to 預備 every frame (one dropped frame would unlock).
-   assert.equal(ai.blocks.b03123.inputs.SUBSTACK[1],'ollie_hand_valid_guard');
-   // ↓ resets 手勢 before 動作=手勢; ←→↑ override 動作 only while held.
-   assert.equal(ai.blocks.ollie_hand_valid_guard.next,'b03157');assert.equal(ai.blocks.b03157.next,'ollie_hand_apply');assert.equal(ai.blocks.ollie_hand_apply.next,'b03145');
-   // Loop yields once per frame (wait 0 requests a redraw) so the VM doesn't spin and starve inference; quick 0.15s confirm.
-   assert.equal(ai.blocks.b03153.next,'ollie_frame_wait');assert.equal(ai.blocks.ollie_frame_wait.inputs.DURATION[1][1],'0');
-   assert.equal(ai.blocks.b03173.inputs.DURATION[1][1],String(WRIST.confirm));
-  }
   const lesson=Number(/^第(\d+)課/.exec(record.file)?.[1]);
-  if(lesson>=7&&lesson<=8){
-   const zip=await JSZip.loadAsync(bytes),project=JSON.parse(await zip.file('project.json').async('string'));
-   for(const b of Object.values<any>(project.targets.find((t:any)=>t.name==='AI偵測').blocks))if(b.opcode==='handpose2scratch_menu_landmark')assert.equal(b.fields.landmark[0],'1',record.file);
+  if(lesson===7||lesson===8){
+   const p=await project(bytes);
+   for(const b of Object.values<any>(p.targets.find((t:any)=>t.name==='AI偵測').blocks))if(b.opcode==='handpose2scratch_menu_landmark')assert.equal(b.fields.landmark[0],'1',record.file);
   }
   if(lesson>=9&&lesson<=27){
-   // Step lessons: thresholds moved inward from the frame edges; from lesson 10 預備 also limits x (預備區 sprite from 11).
-   const zip=await JSZip.loadAsync(bytes),project=JSON.parse(await zip.file('project.json').async('string'));
-   const ai=project.targets.find((t:any)=>t.name==='AI偵測'),zone=project.targets.find((t:any)=>t.name==='預備區');
-   for(const b of Object.values<any>(ai.blocks))if(b.opcode==='handpose2scratch_menu_landmark')assert.equal(b.fields.landmark[0],'1',record.file);
-   const rules=Object.values(ai.blocks).filter((b:any)=>['operator_lt','operator_gt'].includes(b.opcode)&&b.inputs.OPERAND1[1]?.[0]===12)
-    .map((b:any)=>`${b.inputs.OPERAND1[1][1]}${b.opcode==='operator_lt'?'<':'>'}${b.inputs.OPERAND2[1][1]}`).sort();
-   const [l,r,y0,y1]=[`手X<${WRIST.left}`,`手X>${WRIST.right}`,`手Y<${WRIST.readyY}`,`手Y>${WRIST.raise}`];
-   const expected=lesson===9?[y0,y1]:lesson===10?[l,y0,y1]:[l,r,y0,y1];
-   assert.deepEqual(rules,expected.sort(),record.file);
-   assert.equal(Boolean(zone),lesson>=11,record.file);
-   assert.equal(Boolean(ai.blocks.ollie_ready_and),lesson>=10,record.file);
-   if(lesson>=10){assert.equal(ai.blocks.ollie_ready_abs.fields.OPERATOR[0],'abs');assert.equal(ai.blocks.ollie_ready_abs_lt.inputs.OPERAND2[1][1],String(WRIST.readyX));}
-   if(zone){const box=zoneBox(WRIST,zone.costumes[0],await readBoxDims(zip,project));assert.equal(zone.blocks.ollie_zone_size.inputs.SIZE[1][1],String(box.size));assert.equal(Object.values<any>(zone.blocks).find((b:any)=>b.opcode==="motion_gotoxy").inputs.Y[1][1],String(box.y));}
-   // Lesson 10 has no 預備區 sprite, so a comment on the 預備 rule explains the range.
-   if(lesson===10)assert.equal(ai.comments.ollie_ready_note.text,readyNote(WRIST));
+   // Step lessons add one gesture at a time: 舉高 (9), 向左 (10), 向右 (11+), writing 動作 directly.
+   const p=await project(bytes),B=checkGesture(p,record.file,'動作');
+   const moves=[['g_set_up','舉高'],['g_set_left','向左'],['g_set_right','向右']].filter(([id])=>B[id]).map(([id,m])=>B[id].inputs.VALUE[1][1]===m&&m);
+   assert.deepEqual(moves,['舉高','向左','向右'].slice(0,lesson===9?1:lesson===10?2:3),record.file);
+   assert.equal(Boolean(p.targets.find((t:any)=>t.name==='預備區')),lesson>=11,record.file);
    // From lesson 15 an action must hold for the confirm time before 動作成立.
-   const waits=Object.values<any>(ai.blocks).filter((b:any)=>b.opcode==='control_wait').map((b:any)=>b.inputs.DURATION[1][1]);
-   assert.deepEqual(waits,lesson>=15?[String(WRIST.confirm)]:[],record.file);
+   const waits=Object.values<any>(B).filter((b:any)=>b.opcode==='control_wait').map((b:any)=>b.inputs.DURATION[1][1]);
+   assert.deepEqual(waits,lesson>=15?[String(GESTURE.confirm)]:[],record.file);
+   const says=p.targets.flatMap((t:any)=>Object.values<any>(t.blocks)).filter((b:any)=>b.opcode==='looks_say').map((b:any)=>b.inputs.MESSAGE[1][1]);
+   assert.ok(!says.includes('把手舉高（或按 ↑ 鍵）開始遊戲！')&&!says.includes('換你了！'),`${record.file}: position-era prompt left`);
+  }
+  if(lesson===28){
+   const p=await project(bytes),B=checkGesture(p,record.file,'手勢'),v=(id:string)=>B[id].fields.VARIABLE[0];
+   assert.deepEqual(['g_set_up','g_set_left','g_set_right'].map(id=>B[id].inputs.VALUE[1][1]),['舉高','向左','向右']);
+   // ↓ resets 手勢 before 動作=手勢; ←→↑ override 動作 only while held.
+   assert.equal(B.g_remember.next,'b03157');assert.equal(v('b03160'),'手勢');assert.equal(B.b03157.next,'ollie_hand_apply');assert.equal(B.ollie_hand_apply.next,'b03145');
+   assert.equal(B.b03173.inputs.DURATION[1][1],String(GESTURE.confirm));
+   // Opening tutorial: custom block 教學步驟 (提示)(目標) waits for each real gesture or space (跳過教學).
+   const host=p.targets.find((t:any)=>t.name==='主持人').blocks,steps:string[]=[];
+   for(let id=host.b02942.next;id&&host[id].opcode!=='control_wait_until';id=host[id].next)if(host[id].opcode==='procedures_call')steps.push(host[id].inputs.tut_arg_target[1][1]);
+   assert.deepEqual(steps,['舉高','預備','向左','預備','向右','預備']);
+   assert.equal(host.tut_skip_hat.fields.KEY_OPTION[0],'space');assert.equal(host.tut_skip_set.fields.VARIABLE[0],'跳過教學');
+   assert.equal(host.tut_wait.inputs.CONDITION[1],'tut_or');assert.equal(host.tut_proto.mutation.warp,'false');
   }
  }
 });
 
 // Values are read from the script, so check the design rules they must satisfy, not the numbers themselves.
-test('hand-zone thresholds keep dead zones, stay on stage, avoid the cover badge, and every lesson matches the script',async()=>{
- for(const [landmark,z] of Object.entries<any>(ZONES_BY_LANDMARK)){
-  assert.ok(z.left<-z.readyX-20&&z.right>z.readyX+20,`landmark ${landmark}: left/right must clear the 預備區 by > 20`);
-  assert.ok(z.raise-z.readyY>=60,`landmark ${landmark}: 預備 and 舉高 need a dead zone ≥ 60`);
-  assert.ok(z.right<240&&z.left>-240&&z.raise<180&&z.readyY>-180,`landmark ${landmark}: zones must be reachable on stage`);
- }
+test('gesture thresholds keep a fist/open gap and a direction dead zone, and every lesson matches the script',async()=>{
+ const z=GESTURE;
+ assert.ok(z.fist<z.open-0.2,'握拳 and open hand need a gap so a half-closed hand changes nothing');
+ assert.ok(z.direction>=1.2,'direction must clearly beat the other axis, leaving diagonals as a dead zone');
+ assert.ok(z.minBase>0&&z.confirm>0&&z.confirm<0.5,'minBase skips empty hands; confirm stays short enough to feel responsive');
  for(const file of (await readdir('examples/web')).filter(f=>f.endsWith('.sb3')).sort()){
-  const zip=await JSZip.loadAsync(await readFile('examples/web/'+file)),project=JSON.parse(await zip.file('project.json').async('string'));
-  const dims=await readBoxDims(zip,project);
-  assert.equal(applyZones(project,dims),0,`${file} is out of sync with scripts/handpose-lessons.cjs; run npm run examples:handpose`);
-  const zone=project.targets.find((t:any)=>t.name==='預備區');if(!zone)continue;
-  // The drawn box must match the 預備 rule (within rounding) and use whole numbers students can read.
-  const zones=ZONES_BY_LANDMARK[Object.values<any>(project.targets.find((t:any)=>t.name==='AI偵測').blocks).find((b:any)=>b.opcode==='handpose2scratch_menu_landmark').fields.landmark[0]];
-  const costume=zone.costumes[zone.currentCostume],scale=zone.size/100,[width,height]=dims;
-  const left=zone.x-costume.rotationCenterX*scale,right=zone.x+(width-costume.rotationCenterX)*scale,top=zone.y+costume.rotationCenterY*scale,bottom=top-height*scale;
-  assert.ok(Math.abs(left+zones.readyX)<1&&Math.abs(right-zones.readyX)<1&&Math.abs(top-zones.readyY)<1,`${file}: 預備區 box [${left},${right}]x${top} does not match the 預備 rule`);
-  assert.ok(Number.isInteger(zone.x)&&Number.isInteger(zone.y)&&Number.isInteger(zone.size*10),`${file}: 預備區 position should be whole numbers and size at most one decimal`);
-  for(const backdrop of project.targets.find((t:any)=>t.isStage).costumes){
-   // Badge top in stage units: its group offset plus the rect's own y, minus half the stroke; keep a 3-unit gap.
-   const svg=await zip.file(backdrop.md5ext).async('string'),badge=/<g transform="translate\([\d.]+,([\d.]+)\)"><rect[^>]*?\by="([\d.-]+)"[^>]*?stroke-width="([\d.]+)"(?:(?!<\/g>)[\s\S])*BY-NC/.exec(svg);
-   if(/BY-NC/.test(svg))assert.ok(badge,`${file}: cannot locate the license badge on ${backdrop.name}`);
-   if(badge){const badgeTop=backdrop.rotationCenterY-(Number(badge[1])+Number(badge[2])-Number(badge[3])/2);assert.ok(bottom>=badgeTop+3,`${file}: 預備區 bottom ${bottom} is within 3 of the license badge (${badgeTop}) on ${backdrop.name}`);}
-  }
+  const p=await project(await readFile('examples/web/'+file));
+  assert.equal(applyGesture(p),0,`${file} is out of sync with scripts/handpose-lessons.cjs; run npm run examples:handpose`);
+  const note=p.targets.find((t:any)=>t.name==='AI偵測')?.comments?.g_note;
+  if(note)assert.ok(note.text.startsWith('手勢判斷')&&note.text.includes(`${z.fist} 倍`),file);
  }
+ assert.ok(gestureNote(z,['手指朝上＝舉高']).includes('手指朝上＝舉高'));
 });

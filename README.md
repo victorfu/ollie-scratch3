@@ -89,9 +89,9 @@ OpenSSL 舊版相容設定只用於 Scratch Webpack 子程序，不套用到 Nex
 - 替換前必須備份成功；VM 載入失敗會復原，復原失敗會提供備份下載。
 - 「下載作品」匯出真正 SB3；「匯入 SB3」與 File 選單走同一套驗證與復原流程。
 - Music 可從左下擴充功能選單加入。內建樂器與鼓音效在本機 bundle；需使用者點擊綠旗／積木以啟用音訊。
-- 載入 Handpose 範例不會自動要求相機權限；按綠旗、開啟相機或執行視訊積木才啟用。停止與切換作品會清理辨識及相機 tracks。
+- Handpose 使用**未修改的官方 Handpose2Scratch 擴充**（比賽只能用官方模組）：積木為英文；載入含 Handpose 的作品時就會要求相機並顯示官方的「Setup takes a while」提示；停止或切換作品不會關閉相機（與官方編輯器相同），離開頁面才釋放。
 
-第 28 課讀取第 **10 號關節（中指根部）**，不是第 1 號手腕。沒有偵測到手時，紅點保留最後位置但隱藏，動作回到「預備」；重新偵測後才更新紅點。方向鍵備援保留。它使用本專案新增的 `handpose2scratch_isHandDetected` 積木，需在支援此積木的編輯器執行。詳見 [手部追蹤說明](docs/hand-tracking-fix.md)。
+第 9–28 課以手勢操作：握拳＝預備，手張開時手指朝上／朝左／朝右＝舉高／向左／向右；只讀手腕(1)、中指根部(10)、中指尖(13) 的官方 x／y 座標。詳見 [docs/hand-tracking-fix.md](docs/hand-tracking-fix.md)。
 
 ## 網路與相容性
 
@@ -125,7 +125,7 @@ TEST_BASE_URL=http://127.0.0.1:3001 TEST_BFCACHE=1 npm run test:browser
 - 瀏覽器需支援 WebGL；小視窗保留 1024×640 最小工作區並提供捲動。
 - 舊 Scratch 工具鏈有已知 npm audit 警示，未宣稱已通過公網安全審核。
 - VM load 無法安全取消；逾時先鎖定以避免競態，作業稍後完成會解除，否則需重新整理。
-- 目前只允許 Music 與 Handpose，其他 extension ID 會明確拒絕。
-- Scratch 會快取 extension，切換作品後分類可能仍在，但相機與舊結果已清理。
+- 只允許比賽可用的 Music、Pen 與 Handpose2Scratch，其他 extension ID 會明確拒絕。
+- Scratch 會快取 extension：切換作品後 Handpose 分類與相機仍在，最後的手部座標也保留（官方行為）。
 
 [架構與協定](docs/architecture.md) · [驗收記錄](docs/test-results.md) · [Review 修正](docs/review-remediation.md) · [授權聲明](licenses/README.md)

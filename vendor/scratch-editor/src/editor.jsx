@@ -16,18 +16,15 @@ const vm=store.getState().scratchGui.vm;
 const sessionId=crypto.randomUUID(),origin=location.origin;
 let connected='',ready=false,disposed=false,queue=Promise.resolve(),busy=false,revision=0;
 let prepared=null; // At most one validated project, owned by this editor session.
-let cameraState={state:'off',message:'攝影機未開啟'};
 const seen=new Set();
 const send=(type,requestId=crypto.randomUUID(),payload={},transfer=[])=>{if(!disposed)parent.postMessage(envelope(type,sessionId,requestId,payload),origin,transfer);};
 const dirty=()=>store.getState().scratchGui.projectChanged;
 const title=()=>store.getState().scratchGui.projectTitle;
 const overlay=()=>document.getElementById('busy');
-const reportCamera=state=>{cameraState=state;send('camera',undefined,state);};
-const announceReady=()=>{send('ready',connected,{dirty:dirty()});send('camera',undefined,cameraState);};
-const stop=()=>{
- vm.stopAll(); // Handpose owns PROJECT_STOP_ALL; do not also call its stop() directly.
- if(!vm.runtime.handpose){vm.runtime.ioDevices.video.disableVideo();reportCamera({state:'off',message:'攝影機已停止'});}
-};
+const announceReady=()=>send('ready',connected,{dirty:dirty()});
+// The official Handpose2Scratch extension opens the camera once, when it loads, and keeps it; like the
+// official editor, stopping or replacing a project never turns the camera off.
+const stop=()=>vm.stopAll();
 // Validated in the browser: hosted functions cap request bodies (Vercel: 4.5 MB),
 // and these bytes never leave this page anyway. Protocol caps messages at 500 MB.
 async function validate(bytes) {await validateSB3(Buffer.from(bytes),500*1024*1024);}
@@ -83,7 +80,6 @@ async function handle(m) {
    }
    throw Error(`VM 載入：${errorMessage(e)}；已復原原作品`);
   }
-  reportCamera({state:'off',message:'攝影機已停止'});
   send('result',m.requestId,{ok:true});
  } catch(e){send('result',m.requestId,{ok:false,error:errorMessage(e)});}
  finally {busy=false;overlay().style.display='none';send('dirty',undefined,{dirty:dirty()});}
@@ -113,29 +109,22 @@ const unsubscribe=store.subscribe(()=>{
  }
 });
 vm.on('PROJECT_CHANGED',()=>{revision++;});
-vm.runtime.on('HANDPOSE_STATUS',reportCamera);
-async function cameraOn() {
- try {await vm.extensionManager.loadExtensionURL('handpose2scratch');if(!disposed && !busy)await vm.runtime.handpose.start('on');}
- catch(e){reportCamera({state:'error',message:`Handpose：${errorMessage(e)}`});}
-}
 const listeners={
  'ollie-examples':()=>send('open-examples'),
  'ollie-export':()=>send('export-request'),
- 'ollie-import':()=>send('import-request'),
- 'ollie-camera-on':cameraOn,
- 'ollie-camera-off':stop
+ 'ollie-import':()=>send('import-request')
 };
 Object.entries(listeners).forEach(([name,fn])=>window.addEventListener(name,fn));
 function dispose() {
  if(disposed)return;
- // runtime.dispose calls stopAll, which releases Handpose tracks and RAF work.
- vm.runtime.dispose();disposed=true;prepared=null;unsubscribe();
+ // The document is going away: stop the project and release the camera.
+ vm.runtime.dispose();vm.runtime.ioDevices.video.disableVideo();disposed=true;prepared=null;unsubscribe();
  window.removeEventListener('message',message);
  Object.entries(listeners).forEach(([name,fn])=>window.removeEventListener(name,fn));
 }
 window.addEventListener('pagehide',event=>{if(event.persisted)stop();else dispose();});
 window.addEventListener('pageshow',event=>{
- if(event.persisted && !disposed){reportCamera({state:'off',message:'攝影機已停止，按綠旗可重新執行'});if(ready && connected)announceReady();}
+ if(event.persisted && !disposed && ready && connected)announceReady();
 });
 window.addEventListener('beforeunload',e=>{if(dirty()){e.preventDefault();e.returnValue='';}});
 GUI.setAppElement(document.getElementById('app'));

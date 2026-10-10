@@ -56,13 +56,11 @@ test('File load/save closes its menu and an empty title downloads a visible SB3 
  await ed(page).getByText('檔案',{exact:true}).click();const chooser=page.waitForEvent('filechooser');await ed(page).getByText('從你的電腦挑選',{exact:true}).click();await(await chooser).setFiles('tests/fixtures/minimal.sb3');await loaded(page,'minimal');await expect(ed(page).getByText('從你的電腦挑選',{exact:true})).toHaveCount(0);
 });
 
-test('successful replacement clears recovery and camera-error status',async({page})=>{
+test('successful replacement clears recovery',async({page})=>{
  const f=await ready(page);await f.evaluate(()=>{const vm=(window as any).reviewVM;(window as any).loadOriginal=vm.loadProject;vm.loadProject=()=>Promise.reject('failure');});
  await page.locator('input[type=file]').setInputFiles('tests/fixtures/minimal.sb3');await expect(page.locator('.recovery')).toBeVisible();
- await f.evaluate(()=>{const vm=(window as any).reviewVM;vm.loadProject=(window as any).loadOriginal;const manager=vm.extensionManager;(window as any).extensionOriginal=manager.loadExtensionURL;manager.loadExtensionURL=()=>Promise.reject(Error('extension setup failure'));});
- await ed(page).getByRole('button',{name:'開啟相機',exact:true}).click();await expect(page.locator('footer')).toContainText('extension setup failure');
- await f.evaluate(()=>(window as any).reviewVM.extensionManager.loadExtensionURL=(window as any).extensionOriginal);
- await page.locator('input[type=file]').setInputFiles('tests/fixtures/minimal.sb3');await loaded(page,'minimal');await expect(page.locator('.recovery')).toHaveCount(0);await expect(page.locator('footer')).toContainText('攝影機已停止');
+ await f.evaluate(()=>{const vm=(window as any).reviewVM;vm.loadProject=(window as any).loadOriginal;});
+ await page.locator('input[type=file]').setInputFiles('tests/fixtures/minimal.sb3');await loaded(page,'minimal');await expect(page.locator('.recovery')).toHaveCount(0);
 });
 
 test('gallery load validates in the browser and no false dirty after a slow import',async({page})=>{
@@ -73,20 +71,13 @@ test('gallery load validates in the browser and no false dirty after a slow impo
  await select(page,'第01課');await loaded(page,'第01課');expect(uploads).toBe(0);
 });
 
-test('camera-on block does not wait for the model before executing the next block',async({page})=>{
- const f=await ready(page);await page.route('**/scratch-editor/ml5.min.js',r=>r.fulfill({contentType:'application/javascript',body:'window.ml5={handpose:()=>new Promise(r=>window.releaseModel=r)};'}));
+test('official turn video on does not wait for the model before executing the next block',async({page})=>{
+ await page.route(/tfhub.dev|storage.googleapis.com|kaggle.com/,route=>route.abort());page.on('dialog',d=>d.dismiss());
+ const f=await ready(page);
  const zip=await projectZip(),project=JSON.parse(await zip.file('project.json').async('string'));project.extensions=['handpose2scratch'];
- project.targets[1].blocks={hat:{opcode:'event_whenflagclicked',parent:null,next:'camera',inputs:{},fields:{},topLevel:true,shadow:false,x:20,y:20},camera:{opcode:'handpose2scratch_videoToggle',parent:'hat',next:'move',inputs:{VIDEO_STATE:[1,[10,'on']]},fields:{},topLevel:false,shadow:false},move:{opcode:'motion_changexby',parent:'camera',next:null,inputs:{DX:[1,[4,'10']]},fields:{},topLevel:false,shadow:false}};
+ project.targets[1].blocks={hat:{opcode:'event_whenflagclicked',parent:null,next:'camera',inputs:{},fields:{},topLevel:true,shadow:false,x:20,y:20},camera:{opcode:'handpose2scratch_videoToggle',parent:'hat',next:'move',inputs:{VIDEO_STATE:[1,'menu']},fields:{},topLevel:false,shadow:false},menu:{opcode:'handpose2scratch_menu_videoMenu',parent:'camera',next:null,inputs:{},fields:{videoMenu:['on',null]},topLevel:false,shadow:true},move:{opcode:'motion_changexby',parent:'camera',next:null,inputs:{DX:[1,[4,'10']]},fields:{},topLevel:false,shadow:false}};
  zip.file('project.json',JSON.stringify(project));await page.locator('input[type=file]').setInputFiles({name:'camera.sb3',mimeType:'application/octet-stream',buffer:await zip.generateAsync({type:'nodebuffer'})});await loaded(page,'camera');
- await ed(page).locator('img[class*=green-flag_green-flag]').click();await f.waitForFunction(()=>typeof (window as any).releaseModel==='function');
- expect(await f.evaluate(()=>(window as any).reviewVM.runtime.targets[1].x)).toBe(40);await ed(page).getByRole('button',{name:'停止相機',exact:true}).click();
+ await ed(page).locator('img[class*=green-flag_green-flag]').click();
+ await expect.poll(()=>f.evaluate(()=>(window as any).reviewVM.runtime.targets[1].x)).toBe(40);
 });
 
-test('sync and async model failures retry without duplicate ml5 scripts or uncaught errors',async({page})=>{
- const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));let scripts=0;
- await page.route('**/scratch-editor/ml5.min.js',r=>{scripts++;return r.fulfill({contentType:'application/javascript',body:`window.attempts=0;window.ml5={handpose:()=>{const n=++window.attempts;if(n===1)throw Error('sync failure');if(n===2)return Promise.reject(Error('weights failure'));return Promise.resolve({predict:async()=>[]});}};`});});
- await ready(page);const start=ed(page).getByRole('button',{name:'開啟相機',exact:true});
- await start.click();await expect(page.locator('footer')).toContainText('sync failure');
- await start.click();await expect(page.locator('footer')).toContainText('weights failure');
- await start.click();await expect(page.locator('footer')).toContainText('單手辨識中');expect(scripts).toBe(1);expect(errors).toEqual([]);await ed(page).getByRole('button',{name:'停止相機',exact:true}).click();
-});
