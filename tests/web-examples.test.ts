@@ -62,12 +62,15 @@ test('all bundled deployment examples match the manifest and load without a priv
    // ↓ resets 手勢 before 動作=手勢; ←→↑ override 動作 only while held.
    assert.equal(B.g_remember.next,'b03157');assert.equal(v('b03160'),'手勢');assert.equal(B.b03157.next,'ollie_hand_apply');assert.equal(B.ollie_hand_apply.next,'b03145');
    assert.equal(B.b03173.inputs.DURATION[1][1],String(GESTURE.confirm));
-   // Opening tutorial: custom block 教學步驟 (提示)(目標) waits for each real gesture or space (跳過教學).
+   // Opening tutorial in plain blocks (no custom blocks): each step waits for the real gesture or space (跳過教學).
    const host=p.targets.find((t:any)=>t.name==='主持人').blocks,steps:string[]=[];
-   for(let id=host.b02942.next;id&&host[id].opcode!=='control_wait_until';id=host[id].next)if(host[id].opcode==='procedures_call')steps.push(host[id].inputs.tut_arg_target[1][1]);
+   for(let id=host.tut_reset.next;id&&host[id].opcode==='control_if';id=host[id].next){
+    const say=host[host[id].inputs.SUBSTACK[1]],wait=host[say.next],or=host[wait.inputs.CONDITION[1]];
+    assert.equal(say.opcode,'looks_say');assert.equal(wait.opcode,'control_wait_until');assert.equal(or.opcode,'operator_or');
+    steps.push(host[or.inputs.OPERAND1[1]].inputs.OPERAND2[1][1]);
+   }
    assert.deepEqual(steps,['舉高','預備','向左','預備','向右','預備']);
    assert.equal(host.tut_skip_hat.fields.KEY_OPTION[0],'space');assert.equal(host.tut_skip_set.fields.VARIABLE[0],'跳過教學');
-   assert.equal(host.tut_wait.inputs.CONDITION[1],'tut_or');assert.equal(host.tut_proto.mutation.warp,'false');
   }
  }
 });

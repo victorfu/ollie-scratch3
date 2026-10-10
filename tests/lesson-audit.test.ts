@@ -53,15 +53,19 @@ test('every lesson asset, block link, variable, list, broadcast, costume and sou
  }
 });
 
-// The competition editor offers only the original Handpose2Scratch blocks (plus Music and Pen).
+// The competition only allows official Scratch blocks plus the official Music, Pen and Handpose2Scratch
+// extensions: no blocks of our own, neither added extension blocks nor custom blocks (My Blocks).
 const OFFICIAL_HANDPOSE=new Set(['getX','getY','getZ','videoToggle','setVideoTransparency','setRatio','menu_landmark','menu_videoMenu','menu_ratioMenu']);
-test('lessons use only blocks available in the official Handpose2Scratch competition editor',async()=>{
+const CORE=new Set(['motion','looks','sound','event','control','sensing','operator','data','note','music','pen','handpose2scratch']);
+test('lessons use only official Scratch blocks plus Music, Pen and Handpose2Scratch, and no custom blocks',async()=>{
  for(const file of (await readdir('examples/web')).filter(f=>f.endsWith('.sb3')).sort()){
   const project=JSON.parse(await (await JSZip.loadAsync(await readFile('examples/web/'+file))).file('project.json').async('string'));
   assert.ok((project.extensions||[]).every((e:string)=>['handpose2scratch','music','pen'].includes(e)),`${file}: ${project.extensions}`);
   for(const t of project.targets)for(const b of Object.values<any>(t.blocks)){
-   if(Array.isArray(b)||!b.opcode.startsWith('handpose2scratch_'))continue;
-   assert.ok(OFFICIAL_HANDPOSE.has(b.opcode.slice('handpose2scratch_'.length)),`${file}: ${t.name} uses non-official ${b.opcode}`);
+   if(Array.isArray(b))continue;
+   const prefix=b.opcode.split('_')[0];
+   assert.ok(CORE.has(prefix),`${file}: ${t.name} uses ${b.opcode} (custom blocks and other extensions are not allowed)`);
+   if(prefix==='handpose2scratch')assert.ok(OFFICIAL_HANDPOSE.has(b.opcode.slice('handpose2scratch_'.length)),`${file}: ${t.name} uses non-official ${b.opcode}`);
   }
  }
 });

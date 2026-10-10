@@ -103,7 +103,7 @@ test('web lesson 28 reads hand gestures with official blocks only: fist readies,
  expect(firstBounds!.y+firstBounds!.height+20).toBeLessThan(secondBounds!.y);
  // No two scripts in the host (start + tutorial custom block + skip key + handlers) may overlap.
  await f.evaluate(()=>{const vm=(window as any).vm;vm.setEditingTarget(vm.runtime.targets.find((t:any)=>t.getName()==='主持人').id);});
- await expect(f.locator('.blocklyWorkspace > .blocklyBlockCanvas > [data-id="tut_def"]')).toBeAttached();
+ await expect(f.locator('.blocklyWorkspace > .blocklyBlockCanvas > [data-id="tut_skip_hat"]')).toBeAttached();
  const boxes=await f.evaluate(()=>[...document.querySelectorAll('.blocklyWorkspace > .blocklyBlockCanvas > g[data-id]')].map(g=>{const r=(g as SVGGElement).getBoundingClientRect();return {id:g.getAttribute('data-id'),l:r.left,r:r.right,t:r.top,b:r.bottom};}));
  expect(boxes.length).toBeGreaterThanOrEqual(12);
  for(let a=0;a<boxes.length;a++)for(let b=a+1;b<boxes.length;b++){const A=boxes[a],C=boxes[b];expect(A.r<=C.l||C.r<=A.l||A.b<=C.t||C.b<=A.t,`${A.id} overlaps ${C.id}`).toBe(true);}
