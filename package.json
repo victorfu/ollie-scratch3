@@ -14,7 +14,7 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "test": "node --conditions=react-server --import tsx --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test:browser": "playwright test",
     "test:fixtures": "node scripts/create-fixtures.cjs",
     "editor:fetch": "node vendor/scratch-editor/source.cjs",

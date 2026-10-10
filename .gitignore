@@ -1,5 +1,6 @@
 node_modules/
 .next/
+next-env.d.ts
 public/scratch-editor/
 vendor/scratch-editor/.generated/
 .env*
