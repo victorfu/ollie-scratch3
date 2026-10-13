@@ -32,7 +32,7 @@ function checkGesture(p:any,file:string,action:string){
 
 test('all bundled deployment examples match the manifest and load without a private source directory',async()=>{
  const manifest=JSON.parse(await readFile('examples/web/manifest.json','utf8'));
- assert.equal(manifest.files.length,28);
+ assert.equal(manifest.files.length,29);
  const files=(await readdir('examples/web')).filter(f=>f.endsWith('.sb3')).sort();
  assert.deepEqual(files,manifest.files.map((r:any)=>r.file).sort());
  for(const record of manifest.files){

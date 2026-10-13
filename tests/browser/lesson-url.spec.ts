@@ -12,7 +12,7 @@ test('?lesson= opens that lesson, choosing another updates it, an imported file 
  await expect(title(page)).toHaveValue(/^第05課/);await expect(page).toHaveURL(/\?lesson=5$/);
  // Picking a lesson from the gallery rewrites the parameter without adding a history entry.
  const entries=await page.evaluate(()=>history.length);
- await page.frameLocator('iframe').getByRole('button',{name:'範例',exact:true}).click();await page.getByRole('button',{name:/第28課/}).click();
+ await page.frameLocator('iframe').getByRole('button',{name:'範例',exact:true}).click();await page.getByRole('button',{name:/^第28課/}).click();
  await expect(title(page)).toHaveValue(/^第28課/);await expect(page).toHaveURL(/\?lesson=28$/);
  expect(await page.evaluate(()=>history.length)).toBe(entries);
  // A file of the student's own is not a lesson: the parameter goes away.

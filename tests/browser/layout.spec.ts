@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 test('all local examples keep native geometry across window sizes',async({page,request})=>{
  await page.goto('/');await expect(page.locator('.editor-status')).toHaveCount(0,{timeout:90000});
- const frame=page.frameLocator('iframe');const catalog=await (await request.get('/api/examples')).json();expect(catalog.examples.length).toBe(28);
+ const frame=page.frameLocator('iframe');const catalog=await (await request.get('/api/examples')).json();expect(catalog.examples.length).toBe(29);
  for(const example of catalog.examples){
   await page.setViewportSize({width:1440,height:900});
   await frame.getByRole('button',{name:'範例',exact:true}).click();await page.getByRole('button',{name:new RegExp(example.title)}).click();await expect(page.locator('.gallery')).toHaveCount(0);

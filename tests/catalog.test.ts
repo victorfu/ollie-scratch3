@@ -5,7 +5,7 @@ let root:string;const original=process.env.SCRATCH_EXAMPLES_DIR;
 before(async()=>{root=await mkdtemp(path.join(tmpdir(),'ollie-catalog-'));});
 after(async()=>{if(original===undefined)delete process.env.SCRATCH_EXAMPLES_DIR;else process.env.SCRATCH_EXAMPLES_DIR=original;await rm(root,{recursive:true,force:true});});
 test('catalog states and boundary / unchanged binary / corrupt isolation',async()=>{
- delete process.env.SCRATCH_EXAMPLES_DIR;assert.equal((await getCatalog()).status,'ready');assert.equal((await getCatalog()).examples.length,28);
+ delete process.env.SCRATCH_EXAMPLES_DIR;assert.equal((await getCatalog()).status,'ready');assert.equal((await getCatalog()).examples.length,29);
  process.env.SCRATCH_EXAMPLES_DIR='';assert.equal((await getCatalog()).status,'unconfigured');
  process.env.SCRATCH_EXAMPLES_DIR=path.join(root,'missing');assert.equal((await getCatalog()).status,'missing');
  const allowed=path.join(root,'examples');await mkdir(allowed);process.env.SCRATCH_EXAMPLES_DIR=allowed;assert.equal((await getCatalog()).status,'empty');

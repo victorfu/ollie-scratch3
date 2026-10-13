@@ -1,6 +1,6 @@
 # Scratch 工作室
 
-Next.js 網站內的完整 Scratch 3 編輯器，整合原生 Music、Handpose 手部辨識，以及隨專案發布的 **28 個 SB3 範例**。介面預設繁體中文，不需登入，也不會把使用者的作品上傳到外部服務。
+Next.js 網站內的完整 Scratch 3 編輯器，整合原生 Music、Handpose 手部辨識，以及隨專案發布的 **29 個 SB3 範例**。介面預設繁體中文，不需登入，也不會把使用者的作品上傳到外部服務。
 
 ## 快速開始
 
@@ -14,13 +14,27 @@ npm run setup
 npm run dev
 ```
 
-開啟 [http://127.0.0.1:3000](http://127.0.0.1:3000)。不需要 `.env.local` 或額外教材資料夾，預設就會讀取版本控制內的 `examples/web`。
+開啟 [http://localhost:3000](http://localhost:3000)。本機使用不需要 `.env.local` 或額外教材資料夾，預設就會讀取版本控制內的 `examples/web`。
+
+`dev` 與 `start` 監聽 `0.0.0.0`（所有 IPv4 網路介面），啟動時 Local 顯示 `localhost`、Network 顯示 `0.0.0.0`。其他裝置請使用這台電腦的區網 IP，並將該 IP 加入 `SCRATCH_ALLOWED_HOSTS`。
 
 `setup` 依兩份 lockfile 安裝 Next 與獨立 Scratch 套件，再建置編輯器。第一次建置會下載固定 commit 的官方 Scratch GUI 原始碼、驗證 SHA-256，快取至 `vendor/scratch-editor/.cache/`；快取與建置產物不加入 Git。已有有效快取時不需重新下載來源。不要用無版本升級或 `npm audit fix --force` 替換相容組合。
 
 ## 範例庫
 
 [`examples/web`](examples/web) 是唯一的正式教材目錄，包含第 28 課的手部追蹤修正版。SB3 與完整性 manifest 一起納入 Git，clone 與部署都能取得同一份內容。
+
+新增「**五年級簡化版_第28課_跟著跳**」：保留完整的兩關任務，以較直覺的手腕位置取代手勢比例計算，共 162 個積木、10 個變數、2 個清單，沒有自訂積木。
+
+- 三種動作：手腕移到左側（X < -100）、右側（X > 100）或上方（Y > 80）；上方判斷優先。各自對應舞者的不同造型與鋼琴音：向左 Do（60）、向右 Mi（64）、舉高 Sol（67）；示範與玩家作答都會播放。
+- 每個動作前都須回到中間偏下的「預備」位置（|X| < 70 且 Y < 50），不需握拳。動作門檻與預備區之間保留緩衝，邊界抖動時維持上一動作。官方相機會保留最後位置，手離開鏡頭不算回到預備。
+- 第一關「節奏記憶」：共 3 個小關，分別重新亂數產生 3、4、5 個動作，依序示範；完成全部小關才進入第二關。答錯重試當前小關的原序列。
+- 第二關「節奏接龍」：重新產生 3 個動作，每完成一輪就在原序列追加 1 個；完成 5 個即勝利並結束。
+- 每輪答對 +10 分；連續答對第 2 輪起再 +5 分。答錯保留分數、連勝歸零，重新示範同一輪再挑戰。按停止可中止，按綠旗重新開始。
+- Scratch 邏輯優化：判斷與紅點顯示分開執行，判斷迴圈以「等待 0 秒」避免空轉。紅點每 0.05 秒檢查一次，任一方向累積移動超過 2 格才重畫；直接重用座標，不額外讀取 Handpose。預設隱藏「動作」除錯變數。作答使用不等待的廣播與 0.12 拍短音；示範仍保留半拍音符與間隔，避免音效阻擋下一次預備與作答。Handpose 元件維持原樣。
+- 教學可依序練習位置判斷、清單與亂數、依序比較答案，最後加入兩關和計分。
+
+可從「範例」搜尋「五年級」，或開啟 [簡化版](./?lesson=五年級簡化版_第28課_跟著跳)。教材積木附有中文說明；`node scripts/create-simple-lesson.cjs` 可重建這份 SB3（沿用原素材，不修改第 28 課）。
 
 新增、更新或刪除範例後：
 
@@ -58,7 +72,7 @@ npm run start
 - **建置指令**：`npm run setup && npm run build`
 - **啟動指令**：`npm run start:deploy`（綁定 `0.0.0.0`，支援平台提供的 `PORT`）
 - **環境變數**：設定 `SCRATCH_ALLOWED_HOSTS=scratch.example.com`，使用實際網站 hostname；多個以逗號分隔，不含協定、埠或萬用字元。
-- **範例設定**：通常不需設定 `SCRATCH_EXAMPLES_DIR`，直接使用隨 Git 發布的 28 個教材。
+- **範例設定**：通常不需設定 `SCRATCH_EXAMPLES_DIR`，直接使用隨 Git 發布的 29 個教材。
 - **執行環境**：需 Node.js server runtime，不能使用純 static export。
 
 Next 的 output file tracing 已明確包含範例 API 所需的 `examples/web`。`npm run build` 完成後會自動檢查兩個 API 的 tracing 清單是否包含全部教材，並確認 Scratch 靜態產物存在；缺檔會直接使建置失敗。自行打包 Node 伺服器時需保留 `.next`、`public`（包含編譯後的 Scratch）、`examples/web`、package 設定與 runtime dependencies，並從專案根目錄啟動。使用支援 Next.js 的部署平台時，仍需確認它有發布 `public/scratch-editor/` 與 API tracing 列出的範例檔案。
@@ -116,10 +130,10 @@ Browser tests 使用已安裝的 Google Chrome、有視窗模式與 fake media�
 正式模式可執行 `npm run start -- --port 3001`，再使用：
 
 ```sh
-TEST_BASE_URL=http://127.0.0.1:3001 TEST_BFCACHE=1 npm run test:browser
+TEST_BASE_URL=http://localhost:3001 TEST_BFCACHE=1 npm run test:browser
 ```
 
-空狀態另啟動 `SCRATCH_EXAMPLES_DIR='' npm run start -- --port 3002`，並設定 `TEST_EMPTY_URL=http://127.0.0.1:3002`。完整 suite 預期目前的 28 個教材，變更課程數量時需同步調整驗收。報告與截圖位於被 Git 忽略的 `output/playwright`。
+空狀態另啟動 `SCRATCH_EXAMPLES_DIR='' npm run start -- --port 3002`，並設定 `TEST_EMPTY_URL=http://localhost:3002`。完整 suite 預期目前的 29 個教材，變更課程數量時需同步調整驗收。報告與截圖位於被 Git 忽略的 `output/playwright`。
 
 ## 已知限制
 

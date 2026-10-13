@@ -14,10 +14,10 @@ async function inspectFrame(page:Page){const f=page.frames().find(x=>x.url().inc
  (window as any).testStore=walk(root);(window as any).testVM=(window as any).testStore.getState().scratchGui.vm;
  });return f;}
 
-test('real workspace / official 28 examples / sequential loads / unsaved flows / export roundtrip',async({page})=>{
+test('real workspace / official 29 examples / sequential loads / unsaved flows / export roundtrip',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));const failed:string[]=[];page.on('response',r=>{if(r.status()>=400)failed.push(`${r.status()} ${r.url()}`);});
  await ready(page);expect(await editor(page).getByRole('button',{name:'範例',exact:true}).count()).toBe(1);
- await gallery(page);await expect(page.getByText('28 個本機範例')).toBeVisible();await page.getByRole('button',{name:/第01課/}).click();await loaded(page,'第01課');
+ await gallery(page);await expect(page.getByText('29 個本機範例')).toBeVisible();await page.getByRole('button',{name:/第01課/}).click();await loaded(page,'第01課');
  const f=await inspectFrame(page);const before=await f.evaluate(()=>({targets:(window as any).testVM.runtime.targets.map((t:any)=>t.getName()),blocks:(window as any).testVM.runtime.targets.map((t:any)=>Object.keys(t.blocks._blocks).length)}));
  await choose(page,'第08課');await loaded(page,'第08課');
  const after=await f.evaluate(()=>({targets:(window as any).testVM.runtime.targets.map((t:any)=>t.getName()),blocks:(window as any).testVM.runtime.targets.map((t:any)=>Object.keys(t.blocks._blocks).length),camera:(window as any).testVM.runtime.ioDevices.video.provider.enabled}));
@@ -93,7 +93,7 @@ test('API path traversal denied; refreshed list uses no-store; stale session mes
  await page.evaluate(()=>{(window as any).readyMessages=[];window.addEventListener('message',e=>{if(e.data?.type==='ready')(window as any).readyMessages.push(e.data);});});
  await page.locator('iframe').evaluate((el:HTMLIFrameElement)=>el.contentWindow!.location.reload());await expect(page.locator('.editor-status')).toHaveCount(0);await expect.poll(()=>page.evaluate(()=>(window as any).readyMessages.length)).toBe(1);
  await f.evaluate(()=>parent.postMessage({channel:'ollie-scratch',version:1,type:'open-examples',sessionId:'old-session',requestId:'stale'},location.origin));await expect(page.locator('dialog')).toHaveCount(0);
- await gallery(page);await page.getByRole('button',{name:'重新整理'}).click();await expect(page.getByText('28 個本機範例')).toBeVisible();
+ await gallery(page);await page.getByRole('button',{name:'重新整理'}).click();await expect(page.getByText('29 個本機範例')).toBeVisible();
 });
 
 test('Blockly drag edits real VM; Music can be added from extension library',async({page})=>{
@@ -105,7 +105,7 @@ test('Blockly drag edits real VM; Music can be added from extension library',asy
  await expect.poll(()=>f.evaluate(()=>(window as any).testVM.extensionManager.isExtensionLoaded('music'))).toBe(true);
 });
 
-test('all 28 official examples load sequentially without target or block residue',async({page,request})=>{
+test('all 29 official examples load sequentially without target or block residue',async({page,request})=>{
  await ready(page);const f=await inspectFrame(page);const catalog=await (await request.get('/api/examples')).json();
  for(const example of catalog.examples){
   const r=await request.get(`/api/examples/${example.id}/project`);expect(r.ok()).toBe(true);const z=await JSZip.loadAsync(await r.body());const expected=JSON.parse(await z.file('project.json').async('string'));

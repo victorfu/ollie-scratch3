@@ -34,9 +34,9 @@ const pose=(f:Frame,kind:Kind,wx=0,wy=-40,L=50)=>f.evaluate(({kind,wx,wy,L,n})=>
 },{kind,wx,wy,L,n:++seq});
 
 test('web lesson 28 reads hand gestures with official blocks only: fist readies, finger direction acts, stale frames never re-trigger',async({page,request})=>{
- const catalog=await (await request.get('/api/examples')).json();expect(catalog.examples).toHaveLength(28);
+ const catalog=await (await request.get('/api/examples')).json();expect(catalog.examples).toHaveLength(29);
  const f=await setup(page),ed=page.frameLocator('iframe');
- await ed.getByRole('button',{name:'範例',exact:true}).click();await page.getByRole('button',{name:/第28課/}).click();await expect(page.locator('.gallery')).toHaveCount(0);
+ await ed.getByRole('button',{name:'範例',exact:true}).click();await page.getByRole('button',{name:/^第28課/}).click();await expect(page.locator('.gallery')).toHaveCount(0);
  expect(await attachExtension(f)).toBe(true);
  const read=()=>f.evaluate(()=>{const w=window as any,vm=w.vm,t=vm.runtime.targets.find((t:any)=>t.getName()==='AI偵測'),v=vm.runtime.getTargetForStage().variables;return {x:t.x,y:t.y,visible:t.visible,action:v.v02926.value,lock:Number(v.v02927.value)};});
  const stageVar=(id:string)=>f.evaluate(id=>(window as any).vm.runtime.getTargetForStage().variables[id].value,id);

@@ -1,0 +1,105 @@
+// Reuse lesson 28's unmodified artwork; build a smaller, reproducible Scratch project.
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const {createRequire}=require('node:module');
+const JSZip=createRequire(path.resolve(__dirname,'../vendor/scratch-editor/package.json'))('jszip');
+const FILE='五年級簡化版_第28課_跟著跳.sb3';
+module.exports={FILE};
+async function build(){
+ const root=path.resolve(__dirname,'../examples/web');
+ const source=await JSZip.loadAsync(await fs.readFile(path.join(root,'第28課_完成作品.sb3')));
+ const p=JSON.parse(await source.file('project.json').async('string'));
+ p.targets=p.targets.filter(t=>['Stage','主持人','舞者','AI偵測'].includes(t.name));
+ for(const t of p.targets){t.blocks={};t.comments={};t.variables={};t.lists={};t.broadcasts={};t.sounds=[];t.currentCostume=0;}
+ const [stage,host,dancer,ai]=p.targets;
+ stage.costumes=[stage.costumes[1]];
+ stage.broadcasts={show:'表演',response:'動作回應',new:'產生節奏',demo:'示範'};
+ stage.lists={moves:['動作表',['向左','向右','舉高']],sequence:['節奏',[]]};
+ const names=['手X','手Y','動作','題目','分數','連續答對','關卡','小關','第幾個','答錯'];
+ for(const name of names)stage.variables[name]=[name,name==='動作'?'預備':0];
+ dancer.costumes=dancer.costumes.filter(c=>['預備','向左','向右','舉高'].includes(c.name));
+ p.extensions=['handpose2scratch','music'];
+ p.monitors=['動作','分數','關卡','連續答對'].map((name,i)=>({id:name,mode:'default',opcode:'data_variable',params:{VARIABLE:name},spriteName:null,value:stage.variables[name][1],width:0,height:0,x:10,y:235+i*28,visible:true,sliderMin:0,sliderMax:100,isDiscrete:true}));
+ p.monitors.push({...p.monitors[2],id:'小關',params:{VARIABLE:'小關'},x:140});
+ p.monitors.find(m=>m.id==='動作').visible=false;
+ let B,serial=0;
+ const lit=v=>[1,[typeof v==='number'?4:10,String(v)]];
+ const variable=name=>[3,[12,name,name],[10,'']];
+ function block(opcode,inputs={},fields={},shadow=false){const id=`simple_${++serial}`;B[id]={opcode,next:null,parent:null,inputs,fields,shadow,topLevel:false};for(const input of Object.values(inputs))for(const child of input.slice(1))if(typeof child==='string')B[child].parent=id;return id;}
+ const ref=id=>[2,id];
+ const expr=(op,a,b)=>ref(block(`operator_${op}`,{OPERAND1:a,OPERAND2:b}));
+ function chain(...ids){for(let i=1;i<ids.length;i++){B[ids[i-1]].next=ids[i];B[ids[i]].parent=ids[i-1];}return ids[0];}
+ function script(hat,body,x=30,y=30){B[hat].topLevel=true;B[hat].x=x;B[hat].y=y;chain(hat,body);}
+ const set=(name,value)=>block('data_setvariableto',{VALUE:value},{VARIABLE:[name,name]});
+ const say=(message,secs)=>block(secs===undefined?'looks_say':'looks_sayforsecs',{MESSAGE:typeof message==='string'?lit(message):message,...(secs===undefined?{}:{SECS:lit(secs)})});
+ const wait=condition=>block('control_wait_until',{CONDITION:condition});
+ const branch=(condition,body,otherwise)=>block(otherwise?'control_if_else':'control_if',{CONDITION:condition,SUBSTACK:ref(body),...(otherwise?{SUBSTACK2:ref(otherwise)}:{})});
+ const eq=(name,value)=>expr('equals',variable(name),lit(value));
+ function note(t,text){t.comments.lesson_note={blockId:null,x:500,y:30,width:340,height:240,minimized:false,text};}
+ B=ai.blocks;
+ const coord=axis=>{const menu=block('handpose2scratch_menu_landmark',{}, {landmark:['1',null]},true);return ref(block(`handpose2scratch_get${axis}`,{LANDMARK:[1,menu]}));};
+ const abs=value=>ref(block('operator_mathop',{NUM:value},{OPERATOR:['abs',null]}));
+ const moved=expr('or',
+  expr('gt',abs(ref(block('operator_subtract',{NUM1:variable('手X'),NUM2:ref(block('motion_xposition'))}))),lit(2)),
+  expr('gt',abs(ref(block('operator_subtract',{NUM1:variable('手Y'),NUM2:ref(block('motion_yposition'))}))),lit(2)));
+ // A smaller ready zone leaves a buffer around the action thresholds. In that buffer,
+ // retain the previous action instead of spuriously re-arming the next answer.
+ const ready=expr('and',expr('lt',abs(variable('手X')),lit(70)),expr('lt',variable('手Y'),lit(50)));
+ const loop=chain(set('手X',coord('X')),set('手Y',coord('Y')),
+  branch(expr('gt',variable('手Y'),lit(80)),set('動作',lit('舉高')),
+   branch(expr('lt',variable('手X'),lit(-100)),set('動作',lit('向左')),
+    branch(expr('gt',variable('手X'),lit(100)),set('動作',lit('向右')),branch(ready,set('動作',lit('預備')))))),
+  block('control_wait',{DURATION:lit(0)}));
+ script(block('event_whenflagclicked'),chain(set('動作',lit('預備')),block('handpose2scratch_setVideoTransparency',{TRANSPARENCY:lit(40)}),block('control_forever',{SUBSTACK:ref(loop)})));
+ script(block('event_whenflagclicked'),block('control_forever',{SUBSTACK:ref(chain(
+  branch(moved,block('motion_gotoxy',{X:variable('手X'),Y:variable('手Y')})),
+  block('control_wait',{DURATION:lit(0.05)})))}),850,30);
+ note(ai,'動作門檻：Y > 80 舉高、X < -100 向左、X > 100 向右。\n回到預備：|X| < 70 且 Y < 50；中間緩衝區保留上一動作，避免邊界抖動。\n左邊持續判斷，等待 0 秒避免空轉。\n右邊只畫紅點：每 0.05 秒檢查，任一方向累積移動超過 2 格才更新，重用左邊讀取的座標。\n官方擴充保留最後位置，離開鏡頭不算預備。');
+ ai.comments.lesson_note.x=1500;
+ const broadcast=(name,id,wait=true)=>block(wait?'event_broadcastandwait':'event_broadcast',{BROADCAST_INPUT:[1,[11,name,id]]});
+ const receive=(name,id)=>block('event_whenbroadcastreceived',{}, {BROADCAST_OPTION:[name,id]});
+ const pause=secs=>block('control_wait',{DURATION:lit(secs)});
+ const change=(name,n)=>block('data_changevariableby',{VALUE:lit(n)},{VARIABLE:[name,name]});
+ const length=()=>ref(block('data_lengthoflist',{}, {LIST:['節奏','sequence']}));
+ const item=()=>ref(block('data_itemoflist',{INDEX:variable('第幾個')},{LIST:['節奏','sequence']}));
+ const append=()=>block('data_addtolist',{ITEM:ref(block('data_itemoflist',{INDEX:ref(block('operator_random',{FROM:lit(1),TO:lit(3)}))},{LIST:['動作表','moves']}))},{LIST:['節奏','sequence']});
+ B=dancer.blocks;
+ const costume=name=>{const menu=block('looks_costume',{}, {COSTUME:['預備',null]},true);return block('looks_switchcostumeto',{COSTUME:name?[3,[12,name,name],menu]:[1,menu]});};
+ const playNote=(number,beats)=>block('music_playNoteForBeats',{NOTE:[1,block('note',{}, {NOTE:[String(number),null]},true)],BEATS:lit(beats)});
+ // Pick one note before it yields, so a newer answer cannot fall through to another note.
+ const playMove=beats=>branch(eq('題目','向左'),playNote(60,beats),
+  branch(eq('題目','向右'),playNote(64,beats),branch(eq('題目','舉高'),playNote(67,beats))));
+ const instrument=block('music_menu_INSTRUMENT',{}, {INSTRUMENT:['1',null]},true);
+ script(block('event_whenflagclicked'),chain(block('music_setInstrument',{INSTRUMENT:[1,instrument]}),block('music_setTempo',{TEMPO:lit(60)})),850,30);
+ script(receive('表演','show'),chain(costume('題目'),playMove(0.5),pause(0.1),costume(),pause(0.3)));
+ script(receive('動作回應','response'),chain(costume('題目'),playMove(0.12),costume()),30,900);
+ note(dancer,'向左＝Do（60）、向右＝Mi（64）、舉高＝Sol（67）。\n示範：半拍音符，加上間隔，方便記憶。\n動作回應：0.12 拍短音，不阻擋主持人接收下一個動作。\n每次只選一個音符；表演後換回預備造型。');
+ B=host.blocks;
+ const answer=chain(say('先把手移回中間偏下，回到「預備」。'),wait(eq('動作','預備')),say('換你了！做下一個動作。'),
+  wait(ref(block('operator_not',{OPERAND:eq('動作','預備')}))),set('題目',variable('動作')),broadcast('動作回應','response',false),
+  branch(expr('equals',variable('題目'),item()),change('第幾個',1),set('答錯',lit(1))));
+ const correct=chain(change('分數',10),change('連續答對',1),
+  branch(expr('gt',variable('連續答對'),lit(1)),chain(change('分數',5),say('連續答對！另外加 5 分。',1.5))),
+  say('完成一輪！得到 10 分。',1.5),
+  branch(eq('關卡',1),
+   branch(eq('小關',3),chain(set('關卡',lit(2)),set('小關',lit(1)),say('第二關：節奏接龍！從 3 個接到 5 個。',3),broadcast('產生節奏','new')),
+    chain(change('小關',1),say('小關過關！下一小關多記一個動作。',2),broadcast('產生節奏','new'))),
+   branch(expr('equals',length(),lit(5)),set('關卡',lit('完成')),chain(change('小關',1),append(),say('再加一個動作！',1.5)))));
+ const round=chain(set('答錯',lit(0)),broadcast('示範','demo'),set('第幾個',lit(1)),
+  block('control_repeat_until',{CONDITION:expr('or',eq('答錯',1),expr('gt',variable('第幾個'),length())),SUBSTACK:ref(answer)}),
+  branch(eq('答錯',1),chain(set('連續答對',lit(0)),say('沒關係！分數保留，同一輪再試一次。',2)),correct));
+ const total=ref(block('operator_join',{STRING1:lit('兩關都過了！總分：'),STRING2:variable('分數')}));
+ script(block('event_whenflagclicked'),chain(set('分數',lit(0)),set('連續答對',lit(0)),set('關卡',lit(1)),set('小關',lit(1)),
+  say('手移到左、右、上方；每個動作前先回中間偏下。',4),say('第一關共 3 小關：依序記住 3、4、5 個動作！',3),broadcast('產生節奏','new'),
+  block('control_repeat_until',{CONDITION:eq('關卡','完成'),SUBSTACK:ref(round)}),say(total,5),block('control_stop',{}, {STOP_OPTION:['all',null]})));
+ script(receive('產生節奏','new'),chain(block('data_deletealloflist',{}, {LIST:['節奏','sequence']}),block('control_repeat',{TIMES:ref(block('operator_add',{NUM1:variable('小關'),NUM2:lit(2)})),SUBSTACK:ref(append())})),850,30);
+ script(receive('示範','demo'),chain(say('看舞者示範，記住動作順序！',2),set('第幾個',lit(1)),
+  block('control_repeat',{TIMES:length(),SUBSTACK:ref(chain(set('題目',item()),broadcast('表演','show'),change('第幾個',1)))})),850,650);
+ note(host,'第一關有 3 小關：每小關重新亂數產生 3、4、5 個動作，全部完成才過關。\n第二關：先做 3 個，答對後追加 1 個；完成 5 個就勝利。\n每輪 +10 分，連續答對第 2 輪起再 +5 分。\n答錯保留分數、連勝歸零，同一小關原題重新挑戰。\n每個動作前等待「預備」，避免重複計算。\n按停止可結束；按綠旗重新開始。');
+ host.comments.lesson_note.x=1400;
+ const zip=new JSZip();zip.file('project.json',JSON.stringify(p));
+ for(const t of p.targets)for(const c of t.costumes)zip.file(c.md5ext,await source.file(c.md5ext).async('nodebuffer'));
+ await fs.writeFile(path.join(root,FILE),await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
+ console.log(`Created ${FILE}: ${serial} blocks, ${names.length} variables`);
+}
+if(require.main===module)build().catch(e=>{console.error(e);process.exitCode=1;});
