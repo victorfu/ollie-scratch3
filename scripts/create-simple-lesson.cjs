@@ -50,7 +50,6 @@ async function build(){
  const wait=condition=>block('control_wait_until',{CONDITION:condition});
  const branch=(condition,body,otherwise)=>block(otherwise?'control_if_else':'control_if',{CONDITION:condition,SUBSTACK:ref(body),...(otherwise?{SUBSTACK2:ref(otherwise)}:{})});
  const eq=(name,value)=>expr('equals',variable(name),lit(value));
- function note(t,text){t.comments.lesson_note={blockId:null,x:500,y:30,width:340,height:240,minimized:false,text};}
  B=ai.blocks;
  const coord=axis=>{const menu=block('handpose2scratch_menu_landmark',{}, {landmark:['1',null]},true);return ref(block(`handpose2scratch_get${axis}`,{LANDMARK:[1,menu]}));};
  const abs=value=>ref(block('operator_mathop',{NUM:value},{OPERATOR:['abs',null]}));
@@ -66,8 +65,6 @@ async function build(){
  script(block('event_whenflagclicked'),block('control_forever',{SUBSTACK:ref(chain(
   branch(moved,block('motion_gotoxy',{X:variable('手X'),Y:variable('手Y')})),
   block('control_wait',{DURATION:lit(0.05)})))}),850,30);
- note(ai,'只看手腕的位置，不用握拳，也不用算距離。\nX < -100：向左；X > 100：向右。\nY > 80：舉高（最後判斷，所以左上、右上也算舉高）。\n其他位置是預備；每題先回到畫面中間偏下。\n左邊持續判斷，等待 0 秒避免空轉；右邊每 0.05 秒更新紅點。\n官方擴充會保留最後位置，離開鏡頭不算回到預備。');
- ai.comments.lesson_note.x=1500;
  const broadcast=(name,id,wait=true)=>block(wait?'event_broadcastandwait':'event_broadcast',{BROADCAST_INPUT:[1,[11,name,id]]});
  const receive=(name,id)=>block('event_whenbroadcastreceived',{}, {BROADCAST_OPTION:[name,id]});
  const pause=secs=>block('control_wait',{DURATION:lit(secs)});
@@ -85,7 +82,6 @@ async function build(){
  script(block('event_whenflagclicked'),chain(block('music_setInstrument',{INSTRUMENT:[1,instrument]}),block('music_setTempo',{TEMPO:lit(60)})),850,30);
  script(receive('表演','show'),chain(costume('題目'),playMove(0.5),pause(0.1),costume(),pause(0.3)));
  script(receive('動作回應','response'),chain(costume('題目'),playMove(0.12),costume()),30,900);
- note(dancer,'向左＝Do（60）、向右＝Mi（64）、舉高＝Sol（67）。\n示範：半拍音符，加上間隔，方便記憶。\n動作回應：0.12 拍短音，不阻擋主持人接收下一個動作。\n每次只選一個音符；表演後換回預備造型。');
  B=host.blocks;
  const answer=chain(say('先把手移回中間偏下，回到「預備」。'),wait(eq('動作','預備')),say('換你了！做下一個動作。'),
   wait(ref(block('operator_not',{OPERAND:eq('動作','預備')}))),set('題目',variable('動作')),broadcast('動作回應','response',false),
@@ -107,8 +103,6 @@ async function build(){
  script(receive('產生節奏','new'),chain(block('data_deletealloflist',{}, {LIST:['節奏','sequence']}),block('control_repeat',{TIMES:ref(block('operator_add',{NUM1:variable('小關'),NUM2:lit(2)})),SUBSTACK:ref(append())})),850,30);
  script(receive('示範','demo'),chain(say('看舞者示範，記住動作順序！',2),set('第幾個',lit(1)),
   block('control_repeat',{TIMES:length(),SUBSTACK:ref(chain(set('題目',item()),broadcast('表演','show'),change('第幾個',1)))})),850,650);
- note(host,'第一關有 3 小關：每小關重新亂數產生 3、4、5 個動作，全部完成才過關。\n第二關：先做 3 個，答對後追加 1 個；完成 5 個就勝利。\n每輪 +10 分，連續答對第 2 輪起再 +5 分。\n答錯保留分數、連勝歸零，同一小關原題重新挑戰。\n每個動作前等待「預備」，避免重複計算。\n按停止可結束；按綠旗重新開始。');
- host.comments.lesson_note.x=1400;
  const zip=new JSZip();zip.file('project.json',JSON.stringify(p));
  for(const t of p.targets)for(const c of t.costumes)zip.file(c.md5ext,art.find(a=>a.costume.md5ext===c.md5ext)?.data??await source.file(c.md5ext).async('nodebuffer'));
  await fs.writeFile(path.join(root,FILE),await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
