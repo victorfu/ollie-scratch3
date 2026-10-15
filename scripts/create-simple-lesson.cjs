@@ -1,10 +1,22 @@
-// Reuse lesson 28's unmodified artwork; build a smaller, reproducible Scratch project.
+// Reuse lesson 28's stage, the official Scratch Cat, and simple line-drawn dancer poses.
 const fs=require('node:fs/promises');
+const crypto=require('node:crypto');
 const path=require('node:path');
 const {createRequire}=require('node:module');
 const JSZip=createRequire(path.resolve(__dirname,'../vendor/scratch-editor/package.json'))('jszip');
 const FILE='第29課_簡化版.sb3';
 module.exports={FILE};
+const CAT=path.resolve(__dirname,'../vendor/scratch-editor/.generated/src/lib/default-project/bcf454acf82e4504149f7ffe07081dbc.svg');
+// Stick-figure arms from the shoulders (85,78); every pose shares the same body and legs.
+const POSES={預備:[[62,128],[108,128]],向左:[[22,70],[108,128]],向右:[[62,128],[148,70]],舉高:[[35,12],[135,12]]};
+function stickFigure([left,right]){
+ const line=(x1,y1,x2,y2)=>`<path d="M${x1} ${y1} L${x2} ${y2}"/>`;
+ return `<svg xmlns="http://www.w3.org/2000/svg" width="170" height="210" viewBox="0 0 170 210"><g fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">${line(85,62,85,135)}${line(85,135,62,198)}${line(85,135,108,198)}${line(85,78,...left)}${line(85,78,...right)}<circle cx="85" cy="40" r="20"/></g></svg>`;
+}
+function svgCostume(name,data,rotationCenterX,rotationCenterY){
+ const assetId=crypto.createHash('md5').update(data).digest('hex');
+ return {costume:{name,bitmapResolution:1,dataFormat:'svg',assetId,md5ext:`${assetId}.svg`,rotationCenterX,rotationCenterY},data};
+}
 async function build(){
  const root=path.resolve(__dirname,'../examples/web');
  const source=await JSZip.loadAsync(await fs.readFile(path.join(root,'第28課_完成作品.sb3')));
@@ -17,7 +29,10 @@ async function build(){
  stage.lists={moves:['動作表',['向左','向右','舉高']],sequence:['節奏',[]]};
  const names=['手X','手Y','動作','題目','分數','連續答對','關卡','小關','第幾個','答錯'];
  for(const name of names)stage.variables[name]=[name,name==='動作'?'預備':0];
- dancer.costumes=dancer.costumes.filter(c=>['預備','向左','向右','舉高'].includes(c.name));
+ const art=[svgCostume('Scratch 小貓',await fs.readFile(CAT).catch(()=>{throw new Error('Scratch Cat not found; run npm run setup first.');}),48,50)];
+ host.costumes=[art[0].costume];host.size=130;
+ for(const [name,arms] of Object.entries(POSES))art.push(svgCostume(name,Buffer.from(stickFigure(arms)),85,110));
+ dancer.costumes=art.slice(1).map(a=>a.costume);
  p.extensions=['handpose2scratch','music'];
  p.monitors=['動作','分數','關卡','連續答對'].map((name,i)=>({id:name,mode:'default',opcode:'data_variable',params:{VARIABLE:name},spriteName:null,value:stage.variables[name][1],width:0,height:0,x:10,y:235+i*28,visible:true,sliderMin:0,sliderMax:100,isDiscrete:true}));
  p.monitors.push({...p.monitors[2],id:'小關',params:{VARIABLE:'小關'},x:140});
@@ -42,19 +57,16 @@ async function build(){
  const moved=expr('or',
   expr('gt',abs(ref(block('operator_subtract',{NUM1:variable('手X'),NUM2:ref(block('motion_xposition'))}))),lit(2)),
   expr('gt',abs(ref(block('operator_subtract',{NUM1:variable('手Y'),NUM2:ref(block('motion_yposition'))}))),lit(2)));
- // A smaller ready zone leaves a buffer around the action thresholds. In that buffer,
- // retain the previous action instead of spuriously re-arming the next answer.
- const ready=expr('and',expr('lt',abs(variable('手X')),lit(70)),expr('lt',variable('手Y'),lit(50)));
- const loop=chain(set('手X',coord('X')),set('手Y',coord('Y')),
-  branch(expr('gt',variable('手Y'),lit(80)),set('動作',lit('舉高')),
-   branch(expr('lt',variable('手X'),lit(-100)),set('動作',lit('向左')),
-    branch(expr('gt',variable('手X'),lit(100)),set('動作',lit('向右')),branch(ready,set('動作',lit('預備')))))),
+ const loop=chain(set('手X',coord('X')),set('手Y',coord('Y')),set('動作',lit('預備')),
+  branch(expr('lt',variable('手X'),lit(-100)),set('動作',lit('向左'))),
+  branch(expr('gt',variable('手X'),lit(100)),set('動作',lit('向右'))),
+  branch(expr('gt',variable('手Y'),lit(80)),set('動作',lit('舉高'))),
   block('control_wait',{DURATION:lit(0)}));
  script(block('event_whenflagclicked'),chain(set('動作',lit('預備')),block('handpose2scratch_setVideoTransparency',{TRANSPARENCY:lit(40)}),block('control_forever',{SUBSTACK:ref(loop)})));
  script(block('event_whenflagclicked'),block('control_forever',{SUBSTACK:ref(chain(
   branch(moved,block('motion_gotoxy',{X:variable('手X'),Y:variable('手Y')})),
   block('control_wait',{DURATION:lit(0.05)})))}),850,30);
- note(ai,'動作門檻：Y > 80 舉高、X < -100 向左、X > 100 向右。\n回到預備：|X| < 70 且 Y < 50；中間緩衝區保留上一動作，避免邊界抖動。\n左邊持續判斷，等待 0 秒避免空轉。\n右邊只畫紅點：每 0.05 秒檢查，任一方向累積移動超過 2 格才更新，重用左邊讀取的座標。\n官方擴充保留最後位置，離開鏡頭不算預備。');
+ note(ai,'只看手腕的位置，不用握拳，也不用算距離。\nX < -100：向左；X > 100：向右。\nY > 80：舉高（最後判斷，所以左上、右上也算舉高）。\n其他位置是預備；每題先回到畫面中間偏下。\n左邊持續判斷，等待 0 秒避免空轉；右邊每 0.05 秒更新紅點。\n官方擴充會保留最後位置，離開鏡頭不算回到預備。');
  ai.comments.lesson_note.x=1500;
  const broadcast=(name,id,wait=true)=>block(wait?'event_broadcastandwait':'event_broadcast',{BROADCAST_INPUT:[1,[11,name,id]]});
  const receive=(name,id)=>block('event_whenbroadcastreceived',{}, {BROADCAST_OPTION:[name,id]});
@@ -98,7 +110,7 @@ async function build(){
  note(host,'第一關有 3 小關：每小關重新亂數產生 3、4、5 個動作，全部完成才過關。\n第二關：先做 3 個，答對後追加 1 個；完成 5 個就勝利。\n每輪 +10 分，連續答對第 2 輪起再 +5 分。\n答錯保留分數、連勝歸零，同一小關原題重新挑戰。\n每個動作前等待「預備」，避免重複計算。\n按停止可結束；按綠旗重新開始。');
  host.comments.lesson_note.x=1400;
  const zip=new JSZip();zip.file('project.json',JSON.stringify(p));
- for(const t of p.targets)for(const c of t.costumes)zip.file(c.md5ext,await source.file(c.md5ext).async('nodebuffer'));
+ for(const t of p.targets)for(const c of t.costumes)zip.file(c.md5ext,art.find(a=>a.costume.md5ext===c.md5ext)?.data??await source.file(c.md5ext).async('nodebuffer'));
  await fs.writeFile(path.join(root,FILE),await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
  console.log(`Created ${FILE}: ${serial} blocks, ${names.length} variables`);
 }
