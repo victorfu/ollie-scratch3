@@ -1,4 +1,4 @@
-// Reuse lesson 28's stage, the official Scratch Cat, and simple line-drawn dancer poses.
+// Use a plain dark stage, the official Scratch Cat, and simple line-drawn dancer poses.
 const fs=require('node:fs/promises');
 const crypto=require('node:crypto');
 const path=require('node:path');
@@ -24,15 +24,16 @@ async function build(){
  p.targets=p.targets.filter(t=>['Stage','主持人','舞者','AI偵測'].includes(t.name));
  for(const t of p.targets){t.blocks={};t.comments={};t.variables={};t.lists={};t.broadcasts={};t.sounds=[];t.currentCostume=0;}
  const [stage,host,dancer,ai]=p.targets;
- stage.costumes=[stage.costumes[1]];
  stage.broadcasts={show:'表演',response:'動作回應',new:'產生節奏',demo:'示範'};
  stage.lists={moves:['動作表',['向左','向右','舉高']],sequence:['節奏',[]]};
  const names=['手X','手Y','動作','題目','分數','連續答對','關卡','小關','第幾個','答錯'];
  for(const name of names)stage.variables[name]=[name,name==='動作'?'預備':0];
  const art=[svgCostume('Scratch 小貓',await fs.readFile(CAT).catch(()=>{throw new Error('Scratch Cat not found; run npm run setup first.');}),48,50)];
  host.costumes=[art[0].costume];host.size=130;
+ art.push(svgCostume('暗色',Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360"><rect width="480" height="360" fill="#1b1b2f"/></svg>'),240,180));
+ stage.costumes=[art[1].costume];
  for(const [name,arms] of Object.entries(POSES))art.push(svgCostume(name,Buffer.from(stickFigure(arms)),85,110));
- dancer.costumes=art.slice(1).map(a=>a.costume);
+ dancer.costumes=art.slice(2).map(a=>a.costume);
  p.extensions=['handpose2scratch','music'];
  p.monitors=['動作','分數','關卡','連續答對'].map((name,i)=>({id:name,mode:'default',opcode:'data_variable',params:{VARIABLE:name},spriteName:null,value:stage.variables[name][1],width:0,height:0,x:10,y:235+i*28,visible:true,sliderMin:0,sliderMax:100,isDiscrete:true}));
  p.monitors.push({...p.monitors[2],id:'小關',params:{VARIABLE:'小關'},x:140});
@@ -90,17 +91,17 @@ async function build(){
   branch(expr('gt',variable('連續答對'),lit(1)),chain(change('分數',5),say('連續答對！另外加 5 分。',1.5))),
   say('完成一輪！得到 10 分。',1.5),
   branch(eq('關卡',1),
-   branch(eq('小關',3),chain(set('關卡',lit(2)),set('小關',lit(1)),say('第二關：節奏接龍！從 3 個接到 5 個。',3),broadcast('產生節奏','new')),
-    chain(change('小關',1),say('小關過關！下一小關多記一個動作。',2),broadcast('產生節奏','new'))),
-   branch(expr('equals',length(),lit(5)),set('關卡',lit('完成')),chain(change('小關',1),append(),say('再加一個動作！',1.5)))));
+   branch(eq('小關',3),chain(set('關卡',lit(2)),set('小關',lit(1)),say('第二關：節奏接龍！從 2 個接到 4 個。',3),broadcast('產生節奏','new')),
+    chain(change('小關',1),say('小關過關！再記一組新的動作。',2),broadcast('產生節奏','new'))),
+   branch(expr('equals',length(),lit(4)),set('關卡',lit('完成')),chain(change('小關',1),append(),say('再加一個動作！',1.5)))));
  const round=chain(set('答錯',lit(0)),broadcast('示範','demo'),set('第幾個',lit(1)),
   block('control_repeat_until',{CONDITION:expr('or',eq('答錯',1),expr('gt',variable('第幾個'),length())),SUBSTACK:ref(answer)}),
   branch(eq('答錯',1),chain(set('連續答對',lit(0)),say('沒關係！分數保留，同一輪再試一次。',2)),correct));
  const total=ref(block('operator_join',{STRING1:lit('兩關都過了！總分：'),STRING2:variable('分數')}));
  script(block('event_whenflagclicked'),chain(set('分數',lit(0)),set('連續答對',lit(0)),set('關卡',lit(1)),set('小關',lit(1)),
-  say('手移到左、右、上方；每個動作前先回中間偏下。',4),say('第一關共 3 小關：依序記住 3、4、5 個動作！',3),broadcast('產生節奏','new'),
+  say('手移到左、右、上方；每個動作前先回中間偏下。',4),say('第一關共 3 小關：每次記住 3 個動作！',3),broadcast('產生節奏','new'),
   block('control_repeat_until',{CONDITION:eq('關卡','完成'),SUBSTACK:ref(round)}),say(total,5),block('control_stop',{}, {STOP_OPTION:['all',null]})));
- script(receive('產生節奏','new'),chain(block('data_deletealloflist',{}, {LIST:['節奏','sequence']}),block('control_repeat',{TIMES:ref(block('operator_add',{NUM1:variable('小關'),NUM2:lit(2)})),SUBSTACK:ref(append())})),850,30);
+ script(receive('產生節奏','new'),chain(block('data_deletealloflist',{}, {LIST:['節奏','sequence']}),branch(eq('關卡',1),block('control_repeat',{TIMES:lit(3),SUBSTACK:ref(append())}),block('control_repeat',{TIMES:lit(2),SUBSTACK:ref(append())}))),850,30);
  script(receive('示範','demo'),chain(say('看舞者示範，記住動作順序！',2),set('第幾個',lit(1)),
   block('control_repeat',{TIMES:length(),SUBSTACK:ref(chain(set('題目',item()),broadcast('表演','show'),change('第幾個',1)))})),850,650);
  const zip=new JSZip();zip.file('project.json',JSON.stringify(p));
